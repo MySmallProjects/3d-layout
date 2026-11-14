@@ -13,6 +13,7 @@ export async function createRenderApi(payload: {
   name: string;
   sceneId: string | null;
   sceneName: string;
+  cameraName?: string | null;
   width: number;
   height: number;
   settings: RenderSettings;

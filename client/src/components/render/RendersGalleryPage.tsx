@@ -176,9 +176,11 @@ export const RendersGalleryPage: React.FC<RendersGalleryPageProps> = ({
                   <div style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {r.name}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{r.sceneName}</span>
-                    <span>{r.width}×{r.height}</span>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', justifyContent: 'space-between', gap: '6px' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.sceneName}{r.cameraName ? ` · ${r.cameraName}` : ''}
+                    </span>
+                    <span style={{ flexShrink: 0 }}>{r.width}×{r.height}</span>
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
                     {new Date(r.createdAt).toLocaleString()}
@@ -222,6 +224,9 @@ export const RendersGalleryPage: React.FC<RendersGalleryPageProps> = ({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', padding: '10px', backgroundColor: 'var(--bg-card)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
               <div>Scene: <strong style={{ color: 'var(--text-main)' }}>{selected.sceneName}</strong></div>
+              {selected.cameraName && (
+                <div>Camera: <strong style={{ color: 'var(--text-main)' }}>{selected.cameraName}</strong></div>
+              )}
               <div>Renderer: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.rendererType === 'pathtraced' ? 'Path traced' : 'Fast (standard)'}</strong></div>
               <div>Resolution: <strong style={{ color: 'var(--text-main)' }}>{selected.width}×{selected.height}</strong></div>
               <div>Samples: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.rendererType === 'pathtraced' ? `${selected.settings.pathTracerSamples ?? 32} spp (${selected.settings.pathTracerBounces ?? 5} bounces)` : `${selected.settings.samples}x`}</strong></div>

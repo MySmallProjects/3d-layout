@@ -11,6 +11,7 @@ interface RenderRow {
   name: string;
   scene_id: string | null;
   scene_name: string;
+  camera_name: string | null;
   file_path: string;
   thumbnail_path: string;
   width: number;
@@ -26,6 +27,7 @@ function rowToRecord(r: RenderRow): RenderRecord {
     name: r.name,
     sceneId: r.scene_id,
     sceneName: r.scene_name,
+    cameraName: r.camera_name ?? null,
     filePath: r.file_path,
     thumbnailPath: r.thumbnail_path,
     width: r.width,
@@ -67,6 +69,7 @@ export function createRender(params: {
   name: string;
   sceneId: string | null;
   sceneName: string;
+  cameraName?: string | null;
   width: number;
   height: number;
   settings: RenderSettings;
@@ -89,18 +92,20 @@ export function createRender(params: {
 
   const now = new Date().toISOString();
   const cleanName = params.name.trim() || `${params.sceneName || 'Scene'} Render`;
+  const cleanCameraName = params.cameraName?.trim() ? params.cameraName.trim() : null;
   const db = getDatabase();
 
   db.prepare(`
     INSERT INTO renders (
-      id, name, scene_id, scene_name, file_path, thumbnail_path,
+      id, name, scene_id, scene_name, camera_name, file_path, thumbnail_path,
       width, height, created_at, settings, camera
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     cleanName,
     params.sceneId,
     params.sceneName || 'Untitled Scene',
+    cleanCameraName,
     relFile,
     relThumb,
     params.width,
@@ -115,6 +120,7 @@ export function createRender(params: {
     name: cleanName,
     sceneId: params.sceneId,
     sceneName: params.sceneName || 'Untitled Scene',
+    cameraName: cleanCameraName,
     filePath: relFile,
     thumbnailPath: relThumb,
     width: params.width,

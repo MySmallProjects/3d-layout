@@ -32,6 +32,7 @@ export interface RenderRecord {
   name: string;
   sceneId: string | null;
   sceneName: string;
+  cameraName?: string | null;
   filePath: string;
   thumbnailPath: string;
   width: number;

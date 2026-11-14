@@ -1,11 +1,11 @@
 import Database from 'better-sqlite3';
 import { getDatabase } from './connection';
 
-export const CURRENT_DB_SCHEMA_VERSION = 3;
+export const CURRENT_DB_SCHEMA_VERSION = 4;
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {
   const cols = db.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[];
-  if (!cols.some((c) => c.name === column)) {
+  if (cols.length > 0 && !cols.some((c) => c.name === column)) {
     db.exec(`ALTER TABLE "${table}" ADD COLUMN ${column} ${definition}`);
   }
 }
@@ -83,6 +83,7 @@ export function initializeDatabase(): void {
       name TEXT NOT NULL,
       scene_id TEXT,
       scene_name TEXT NOT NULL,
+      camera_name TEXT,
       file_path TEXT NOT NULL,
       thumbnail_path TEXT NOT NULL,
       width INTEGER NOT NULL,
@@ -95,6 +96,7 @@ export function initializeDatabase(): void {
 
   ensureColumn(db, 'models', 'normalisation', 'TEXT');
   ensureColumn(db, 'models', 'optimisation', 'TEXT');
+  ensureColumn(db, 'renders', 'camera_name', 'TEXT');
 }
 
 /**
@@ -103,10 +105,7 @@ export function initializeDatabase(): void {
 export function migrateDatabase(db: Database.Database, fromVersion: number): void {
   if (fromVersion >= CURRENT_DB_SCHEMA_VERSION) return;
 
-  ensureColumn(db, 'models', 'normalisation', 'TEXT');
-  ensureColumn(db, 'models', 'optimisation', 'TEXT');
-
-  // Ensure any newer tables exist on older backups
+  // Ensure any newer tables exist on older backups before adding missing columns
   db.exec(`
     CREATE TABLE IF NOT EXISTS backgrounds (
       id TEXT PRIMARY KEY,
@@ -151,6 +150,7 @@ export function migrateDatabase(db: Database.Database, fromVersion: number): voi
       name TEXT NOT NULL,
       scene_id TEXT,
       scene_name TEXT NOT NULL,
+      camera_name TEXT,
       file_path TEXT NOT NULL,
       thumbnail_path TEXT NOT NULL,
       width INTEGER NOT NULL,
@@ -160,4 +160,8 @@ export function migrateDatabase(db: Database.Database, fromVersion: number): voi
       camera TEXT NOT NULL
     );
   `);
+
+  ensureColumn(db, 'models', 'normalisation', 'TEXT');
+  ensureColumn(db, 'models', 'optimisation', 'TEXT');
+  ensureColumn(db, 'renders', 'camera_name', 'TEXT');
 }

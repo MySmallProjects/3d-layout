@@ -80,7 +80,7 @@ The agent ticks items as completed, and lists any skipped or simplified items un
 - [x] 7.1 Import normalisation
 - [x] 7.2 Optional GLB optimisation (meshopt, texture resize, WebP) with revert
 - [x] 7.3 Camera bookmarks
-- [ ] 7.4 Batch render
+- [x] 7.4 Batch render
 - [ ] 7.5 Grouping / parenting
 - [ ] 7.6 Snap to surface
 - [ ] 7.7 Ground plane options

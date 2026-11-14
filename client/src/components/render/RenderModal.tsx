@@ -9,6 +9,12 @@ import { useLibraryStore } from '../../store/libraryStore';
 import { fetchCustomPresets, fetchHdris } from '../../api/lighting';
 import { createRenderApi } from '../../api/renders';
 import { executeRenderWithFallback } from '../../utils/pathTracerRenderer';
+import {
+  BatchBookmarksSelector,
+  BatchProgressBar,
+  BatchResultsSummary,
+  type BatchProgressState,
+} from './BatchRenderSection';
 
 interface RenderModalProps {
   isOpen: boolean;
@@ -41,6 +47,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     currentSceneName,
     lighting,
     renderSettings,
+    cameraBookmarks,
     setLighting,
     setRenderSettings,
   } = useSceneStore();
@@ -55,6 +62,10 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
   const [completedRender, setCompletedRender] = useState<RenderRecord | null>(null);
+  const [renderTargetMode, setRenderTargetMode] = useState<'single' | 'batch'>('single');
+  const [selectedBookmarkIds, setSelectedBookmarkIds] = useState<string[]>([]);
+  const [batchProgress, setBatchProgress] = useState<BatchProgressState | null>(null);
+  const [completedBatch, setCompletedBatch] = useState<RenderRecord[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -63,8 +74,15 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     setError(null);
     setFallbackNotice(null);
     setCompletedRender(null);
+    setCompletedBatch([]);
+    setBatchProgress(null);
+    setSelectedBookmarkIds(cameraBookmarks.map((b) => b.id));
+    if (cameraBookmarks.length === 0) {
+      setRenderTargetMode('single');
+    }
     fetchCustomPresets().then(setCustomPresets).catch(() => {});
     fetchHdris().then(setHdris).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, currentSceneName]);
 
   const handleResolutionPreset = (preset: ResolutionPreset) => {
@@ -102,19 +120,28 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     setError(null);
     setFallbackNotice(null);
     setCompletedRender(null);
+    setCompletedBatch([]);
+    setBatchProgress(null);
+
+    const isBatch = renderTargetMode === 'batch' && cameraBookmarks.length > 0;
+    const batchTargets = isBatch
+      ? cameraBookmarks.filter((b) => selectedBookmarkIds.includes(b.id))
+      : [];
+
+    if (isBatch && batchTargets.length === 0) {
+      setError('Select at least one camera bookmark to batch render.');
+      return;
+    }
+
     setRendering(true);
     setProgress(0);
     setStage('Starting...');
 
     const controller = new AbortController();
     abortRef.current = controller;
+    let batchSavedCount = 0;
 
     try {
-      const getCam = (window as any).__getCameraState as
-        | (() => { position: [number, number, number]; target: [number, number, number] })
-        | undefined;
-      const liveCam = getCam ? getCam() : useSceneStore.getState().cameraState;
-
       const latestHdriList = hdris.length > 0 ? hdris : await fetchHdris().catch(() => []);
       const settingsSnapshot = {
         ...renderSettings,
@@ -123,6 +150,87 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         pathTracerBounces: renderSettings.pathTracerBounces ?? 5,
         lighting,
       };
+      const baseName = renderName.trim() || `${currentSceneName} Render`;
+
+      if (isBatch) {
+        const savedResults: RenderRecord[] = [];
+        let fallbackShown = false;
+
+        for (let i = 0; i < batchTargets.length; i++) {
+          if (controller.signal.aborted) break;
+          const bookmark = batchTargets[i];
+          setBatchProgress({
+            total: batchTargets.length,
+            completedCount: i,
+            currentIndex: i,
+            currentBookmarkName: bookmark.name,
+          });
+          setProgress(0);
+          setStage('Starting...');
+
+          const output = await executeRenderWithFallback(
+            {
+              objects,
+              background,
+              cameraState: bookmark.camera,
+              settings: settingsSnapshot,
+              hdris: latestHdriList,
+              signal: controller.signal,
+              onProgress: (pct, st) => {
+                setProgress(pct);
+                setStage(st);
+              },
+            },
+            (reason) => {
+              if (!fallbackShown) {
+                fallbackShown = true;
+                const msg = `Path tracer unavailable (${reason}). Fell back to Fast (standard) renderer.`;
+                setFallbackNotice(msg);
+                showToast(msg, 'info');
+              }
+            }
+          );
+
+          const savedSettings = output.usedFallback
+            ? { ...settingsSnapshot, rendererType: 'standard' as const }
+            : settingsSnapshot;
+
+          setStage('Saving to gallery...');
+          const saved = await createRenderApi({
+            name: `${baseName} — ${bookmark.name}`,
+            sceneId: currentSceneId,
+            sceneName: currentSceneName,
+            cameraName: bookmark.name,
+            width: output.width,
+            height: output.height,
+            settings: savedSettings,
+            camera: bookmark.camera,
+            imageDataUrl: output.imageDataUrl,
+            thumbnailDataUrl: output.thumbnailDataUrl,
+          });
+
+          savedResults.push(saved);
+          batchSavedCount = savedResults.length;
+          setCompletedBatch([...savedResults]);
+        }
+
+        setBatchProgress({
+          total: batchTargets.length,
+          completedCount: savedResults.length,
+          currentIndex: Math.max(0, savedResults.length - 1),
+          currentBookmarkName: '',
+        });
+        showToast(
+          `Batch render finished: saved ${savedResults.length} image${savedResults.length === 1 ? '' : 's'} to gallery!`,
+          'success'
+        );
+        return;
+      }
+
+      const getCam = (window as any).__getCameraState as
+        | (() => { position: [number, number, number]; target: [number, number, number] })
+        | undefined;
+      const liveCam = getCam ? getCam() : useSceneStore.getState().cameraState;
 
       const output = await executeRenderWithFallback(
         {
@@ -150,7 +258,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
 
       setStage('Saving to gallery...');
       const saved = await createRenderApi({
-        name: renderName.trim() || `${currentSceneName} Render`,
+        name: baseName,
         sceneId: currentSceneId,
         sceneName: currentSceneName,
         width: output.width,
@@ -164,10 +272,18 @@ export const RenderModal: React.FC<RenderModalProps> = ({
       setCompletedRender(saved);
       showToast(output.usedFallback ? 'Rendered with standard fallback and saved!' : 'Render saved to gallery!', 'success');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Render failed';
-      setError(msg);
+      if (controller.signal.aborted) {
+        const msg = isBatch
+          ? `Batch render cancelled (${batchSavedCount} of ${batchTargets.length} saved to gallery).`
+          : 'Render cancelled.';
+        setFallbackNotice(msg);
+      } else {
+        const msg = err instanceof Error ? err.message : 'Render failed';
+        setError(msg);
+      }
     } finally {
       setRendering(false);
+      setBatchProgress(null);
       abortRef.current = null;
     }
   };
@@ -197,6 +313,22 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             {fallbackNotice}
           </div>
         )}
+
+        {/* Render Target (Current View vs Batch Bookmarks) */}
+        <BatchBookmarksSelector
+          bookmarks={cameraBookmarks}
+          mode={renderTargetMode}
+          selectedIds={selectedBookmarkIds}
+          disabled={rendering}
+          onModeChange={setRenderTargetMode}
+          onToggleId={(id) =>
+            setSelectedBookmarkIds((prev) =>
+              prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+            )
+          }
+          onSelectAll={() => setSelectedBookmarkIds(cameraBookmarks.map((b) => b.id))}
+          onSelectNone={() => setSelectedBookmarkIds([])}
+        />
 
         {/* Renderer Mode & Name */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
@@ -461,7 +593,13 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         </div>
 
         {/* Progress Bar */}
-        {rendering && (
+        {rendering && batchProgress ? (
+          <BatchProgressBar
+            batch={batchProgress}
+            perRenderStage={stage}
+            perRenderPct={progress}
+          />
+        ) : rendering ? (
           <div style={{ padding: '10px', backgroundColor: 'var(--bg-card)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
               <span>{stage}</span>
@@ -471,6 +609,15 @@ export const RenderModal: React.FC<RenderModalProps> = ({
               <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--accent)', transition: 'width 0.15s ease' }} />
             </div>
           </div>
+        ) : null}
+
+        {/* Batch Results Summary */}
+        {completedBatch.length > 0 && (
+          <BatchResultsSummary
+            results={completedBatch}
+            onClose={onClose}
+            onOpenGallery={onOpenGallery}
+          />
         )}
 
         {/* Completed Preview */}
@@ -540,7 +687,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
               }}
             >
               <XCircle size={14} />
-              Cancel Render
+              {batchProgress ? 'Cancel Batch' : 'Cancel Render'}
             </button>
           ) : (
             <>
@@ -570,7 +717,9 @@ export const RenderModal: React.FC<RenderModalProps> = ({
                 }}
               >
                 <Camera size={14} />
-                Start Render
+                {renderTargetMode === 'batch' && cameraBookmarks.length > 0
+                  ? `Start Batch Render (${selectedBookmarkIds.length})`
+                  : 'Start Render'}
               </button>
             </>
           )}

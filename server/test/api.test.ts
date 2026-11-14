@@ -258,6 +258,7 @@ async function runTests() {
     name: 'Test Render 1',
     sceneId: bScene.id,
     sceneName: bScene.name,
+    cameraName: 'Front Hero',
     width: 1920,
     height: 1080,
     settings: {
@@ -379,7 +380,10 @@ async function runTests() {
   assert.strictEqual(renamedRender.name, 'Renamed Render');
   assert(listCustomPresets().some((p) => p.id === bPreset.id), 'Lighting preset restored in backup');
   assert(listHdris().some((h) => h.id === bHdri.id), 'HDRI restored in backup');
-  assert(listRenders('desc', bScene.id).some((r) => r.id === bRender.id), 'Render restored in backup');
+  const restoredRenders = listRenders('desc', bScene.id);
+  const restoredRender = restoredRenders.find((r) => r.id === bRender.id);
+  assert(restoredRender, 'Render restored in backup');
+  assert.strictEqual(restoredRender?.cameraName, 'Front Hero', 'Render cameraName metadata restored in backup');
 
   deleteRender(bRender.id);
   deleteHdri(bHdri.id);
@@ -515,6 +519,29 @@ async function runTests() {
   assert(v3Cols.some((c) => c.name === 'optimisation'), 'v2 -> v3 migration must add models.optimisation');
   legacyV2Db.close();
   console.log('✓ Phase 7.2 GLB optimisation, WebP/Meshopt output, backup/restore, revert & v2->v3 migration verified');
+
+  // Verify v3 -> v4 migration adds renders.camera_name
+  const legacyV3Db = new DatabaseMod(':memory:');
+  legacyV3Db.exec(`
+    CREATE TABLE renders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      scene_id TEXT,
+      scene_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      thumbnail_path TEXT NOT NULL,
+      width INTEGER NOT NULL,
+      height INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      settings TEXT NOT NULL,
+      camera TEXT NOT NULL
+    );
+  `);
+  migrateDatabase(legacyV3Db, 3);
+  const v4Cols = legacyV3Db.prepare('PRAGMA table_info("renders")').all() as { name: string }[];
+  assert(v4Cols.some((c) => c.name === 'camera_name'), 'v3 -> v4 migration must add renders.camera_name');
+  legacyV3Db.close();
+  console.log('✓ Phase 7.4 render cameraName metadata & v3->v4 migration verified');
 
   // Clean up isolated temp DATA_DIR if running in tmpdir
   if (DATA_DIR.startsWith(os.tmpdir())) {
