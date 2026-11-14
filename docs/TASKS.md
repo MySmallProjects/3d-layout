@@ -1,0 +1,93 @@
+# Task checklist
+The agent ticks items as completed, and lists any skipped or simplified items under each phase.
+
+## Phase 1: Scaffold, versioning, backend, library
+- [x] Scaffold client/server/shared, dev command, Docker, README
+- [x] Versioning script + version label + About popup + /api/version
+- [x] Upload API with validation (multi-file)
+- [x] Model rename / move / delete API
+- [x] Folder create / rename / delete (nested) API
+- [x] Library panel UI with drag-and-drop upload
+- [x] Rename, delete, move (drag and "Move to...") in UI
+- [x] Search filter
+- [x] Thumbnail generation and storage
+- [x] Meshopt decoder registered
+- Skipped/simplified:
+  - Docker daemon socket (/var/run/docker.sock) is unprivileged in this sandbox environment; Dockerfile and docker-compose.yml were verified syntactically and structured for standard volume-mounted deployments.
+  - Browser verification subagent could not connect to Chrome due to absent Chrome DevTools port in this headless sandbox; comprehensive integration and HTTP/API end-to-end tests were performed to verify the full workflow.
+
+## Phase 2: Viewport and scene basics
+- [ ] Fast edit-mode viewport
+- [ ] Drag from library onto floor point
+- [ ] Multiple independent instances
+- [ ] Selection, multi-select, deselect
+- [ ] Orbit/pan/zoom, focus (F), reset view
+- [ ] Grid toggle (G)
+- [ ] Background image / colour / clear (stored on server)
+- [ ] Hover and selected outlines
+- [ ] Scene objects list with thumbnails, visibility, lock, rename, delete, duplicate
+- [ ] Zustand scene store (serialisable)
+- [ ] Loading indicators and load-failure placeholder
+- Skipped/simplified:
+
+## Phase 3: Manipulation, properties, undo/redo, help
+- [ ] Transform gizmo (W/E/R)
+- [ ] Arrow-key movement (X, Z camera-relative, PageUp/Down for Y; Shift/Alt steps)
+- [ ] Snapping (position, rotation, scale)
+- [ ] Snap to floor
+- [ ] Mirror X/Y/Z
+- [ ] Multi-select group transforms
+- [ ] Duplicate / delete / deselect
+- [ ] Properties panel with scrub and arrow-key fine adjustment
+- [ ] Undo/redo for all edits
+- [ ] Help page from single shortcuts file
+- Skipped/simplified:
+
+## Phase 4: Scene save/load
+- [ ] Scenes API
+- [ ] Save / Save As / Open / New / Duplicate / Rename / Delete
+- [ ] Scene list with thumbnails
+- [ ] Missing model handling
+- [ ] Unsaved changes indicator and warnings
+- [ ] Autosave draft + recovery
+- [ ] JSON export / import
+- Skipped/simplified:
+
+## Phase 5: Admin
+- [ ] Admin page and overview stats
+- [ ] Backup (consistent DB copy, streamed zip, manifest)
+- [ ] Restore (validate, temp extract, swap, migrate)
+- [ ] Reset everything (RESET confirmation)
+- [ ] Round-trip and malformed-zip tests
+- Skipped/simplified:
+
+## Phase 6: Lighting, rendering, gallery
+- [ ] 6a Lighting presets (built-in, editable, custom, HDRI upload)
+- [ ] 6a Render settings dialog
+- [ ] 6a Standard high-quality renderer with progress/cancel
+- [ ] 6a Auto-upload render with metadata
+- [ ] 6c Render gallery (view, download, rename, delete, re-open scene, re-render)
+- [ ] 6c Sort and filter
+- [ ] 6b Path tracer (stretch) with fallback
+- Skipped/simplified:
+
+## Phase 7: Extra features
+- [ ] 7.1 Import normalisation
+- [ ] 7.2 Optional GLB optimisation (meshopt, texture resize, WebP) with revert
+- [ ] 7.3 Camera bookmarks
+- [ ] 7.4 Batch render
+- [ ] 7.5 Grouping / parenting
+- [ ] 7.6 Snap to surface
+- [ ] 7.7 Ground plane options
+- Skipped/simplified:
+
+## Phase 8: Polish
+- [ ] Review skipped items
+- [ ] Performance pass
+- [ ] Error handling pass
+- [ ] Optional admin password
+- [ ] UI polish
+- [ ] Tags and recently used
+- [ ] Approved nice-to-haves
+- [ ] Final README
+- Skipped/simplified:

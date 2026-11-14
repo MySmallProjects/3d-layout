@@ -1,0 +1,18 @@
+{
+  "name": "3d-scene-composer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A self-hosted web app for composing 3D scenes from a personal library of GLB models",
+  "scripts": {
+    "dev": "concurrently -k -p \"[{name}]\" -n \"server,client\" -c \"cyan,magenta\" \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "prebuild": "node scripts/update-version.js",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build": "node scripts/update-version.js && npm run build:server && npm run build:client",
+    "test": "npm --prefix server run test",
+    "start": "npm --prefix server run start"
+  },
+  "dependencies": {
+    "concurrently": "9.1.2"
+  }
+}
