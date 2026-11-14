@@ -72,6 +72,19 @@ export function validateAndNormalizeSceneJson(
       missingModels.add(modelId);
     }
 
+    const rawApplied = rec.appliedNormalisation as Record<string, unknown> | undefined;
+    const appliedNormalisation =
+      rawApplied &&
+      typeof rawApplied === 'object' &&
+      typeof rawApplied.scaleFactor === 'number' &&
+      Number.isFinite(rawApplied.scaleFactor) &&
+      rawApplied.scaleFactor > 0
+        ? {
+            scaleFactor: rawApplied.scaleFactor,
+            pivotOffset: toVec3(rawApplied.pivotOffset, [0, 0, 0]),
+          }
+        : undefined;
+
     return {
       id:
         typeof rec.id === 'string' && rec.id.trim()
@@ -85,6 +98,7 @@ export function validateAndNormalizeSceneJson(
       visible: typeof rec.visible === 'boolean' ? rec.visible : true,
       locked: typeof rec.locked === 'boolean' ? rec.locked : false,
       parentId: typeof rec.parentId === 'string' ? rec.parentId : null,
+      ...(appliedNormalisation ? { appliedNormalisation } : {}),
     };
   });
 

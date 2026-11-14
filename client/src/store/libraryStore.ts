@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Folder, FolderNode, LibraryModel } from '../types';
+import { AppSettings, DEFAULT_APP_SETTINGS, Folder, FolderNode, LibraryModel, ModelNormalisation } from '../types';
 import {
   fetchFolders,
   createFolderApi,
@@ -12,9 +12,12 @@ import {
   renameModelApi,
   moveModelApi,
   deleteModelApi,
-  uploadThumbnailApi
+  uploadThumbnailApi,
+  updateModelNormalisationApi
 } from '../api/models';
+import { fetchAppSettings, updateAppSettingsApi } from '../api/settings';
 import { generateThumbnailDataUrl } from '../services/thumbnailGenerator';
+import { computeModelNormalisationFromUrl } from '../utils/modelNormalisation';
 
 interface LibraryState {
   models: LibraryModel[];
@@ -25,10 +28,13 @@ interface LibraryState {
   isLoading: boolean;
   uploadProgress: { total: number; completed: number; currentName?: string } | null;
   generatingThumbnails: Record<string, boolean>;
+  appSettings: AppSettings;
   toast: { message: string; type: 'info' | 'success' | 'error' } | null;
 
   // Actions
   loadLibrary: () => Promise<void>;
+  loadSettings: () => Promise<void>;
+  saveSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
   setSelectedFolder: (folderId: string | null | undefined) => void;
   setSearchQuery: (query: string) => void;
   createFolder: (name: string, parentId?: string | null) => Promise<void>;
@@ -39,6 +45,8 @@ interface LibraryState {
   moveModel: (id: string, folderId: string | null) => Promise<void>;
   deleteModel: (id: string) => Promise<void>;
   regenerateThumbnail: (id: string) => Promise<void>;
+  updateModelNormalisation: (id: string, norm: ModelNormalisation | null) => Promise<LibraryModel>;
+  renormaliseModel: (id: string, targetSizeOverride?: number, enabledOverride?: boolean) => Promise<LibraryModel>;
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void;
   clearToast: () => void;
 }
@@ -52,6 +60,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   isLoading: false,
   uploadProgress: null,
   generatingThumbnails: {},
+  appSettings: DEFAULT_APP_SETTINGS,
   toast: null,
 
   showToast: (message, type = 'info') => {
@@ -74,14 +83,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     const { selectedFolderId, searchQuery } = get();
     set({ isLoading: true });
     try {
-      const [foldersRes, modelsRes] = await Promise.all([
+      const [foldersRes, modelsRes, settingsRes] = await Promise.all([
         fetchFolders(),
-        fetchModels(selectedFolderId, searchQuery)
+        fetchModels(selectedFolderId, searchQuery),
+        fetchAppSettings().catch(() => get().appSettings)
       ]);
       set({
         folders: foldersRes.folders,
         folderTree: foldersRes.tree,
         models: modelsRes.models,
+        appSettings: settingsRes,
         isLoading: false
       });
     } catch (err: unknown) {
@@ -89,6 +100,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set({ isLoading: false });
       get().showToast(message, 'error');
     }
+  },
+
+  loadSettings: async () => {
+    const settings = await fetchAppSettings();
+    set({ appSettings: settings });
+  },
+
+  saveSettings: async (patch) => {
+    const updated = await updateAppSettingsApi(patch);
+    set({ appSettings: updated });
+    return updated;
   },
 
   createFolder: async (name, parentId = null) => {
@@ -144,11 +166,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       // Reload to show new models immediately
       await get().loadLibrary();
 
-      // Trigger client-side offscreen thumbnail rendering for newly uploaded models
+      // Trigger client-side offscreen thumbnail rendering + import normalisation for newly uploaded models
+      const normCfg = get().appSettings.normalization;
       for (const m of res.models) {
         get().regenerateThumbnail(m.id).catch((e) => {
           console.warn(`Auto-thumbnail failed for model ${m.name}:`, e);
         });
+        get()
+          .renormaliseModel(m.id, normCfg.defaultTargetSize, normCfg.enabledByDefault)
+          .catch((e) => {
+            console.warn(`Auto-normalisation failed for model ${m.name}:`, e);
+          });
       }
     } catch (err: unknown) {
       set({ uploadProgress: null });
@@ -214,5 +242,26 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const message = err instanceof Error ? err.message : 'Failed to delete model';
       get().showToast(message, 'error');
     }
+  },
+
+  updateModelNormalisation: async (id, norm) => {
+    const updated = await updateModelNormalisationApi(id, norm);
+    set((state) => ({
+      models: state.models.map((m) => (m.id === id ? updated : m))
+    }));
+    return updated;
+  },
+
+  renormaliseModel: async (id, targetSizeOverride, enabledOverride) => {
+    const existing = get().models.find((m) => m.id === id);
+    const defaultSize = get().appSettings.normalization.defaultTargetSize;
+    const targetSize = targetSizeOverride ?? existing?.normalisation?.targetSize ?? defaultSize;
+    const enabled = enabledOverride ?? true;
+    const computed = await computeModelNormalisationFromUrl(
+      `/api/models/${id}/file`,
+      targetSize,
+      enabled
+    );
+    return get().updateModelNormalisation(id, computed);
   }
 }));

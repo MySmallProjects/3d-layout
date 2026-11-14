@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Loader2, Edit2, FolderInput, RefreshCw, Trash2 } from 'lucide-react';
+import { Box, Loader2, Edit2, FolderInput, RefreshCw, Ruler, Trash2 } from 'lucide-react';
 import { LibraryModel } from '../../types';
 import { useLibraryStore } from '../../store/libraryStore';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
@@ -8,11 +8,12 @@ interface ModelCardProps {
   model: LibraryModel;
   onRename: (model: LibraryModel) => void;
   onMove: (model: LibraryModel) => void;
+  onNormalise: (model: LibraryModel) => void;
   onDelete: (model: LibraryModel) => void;
 }
 
-export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, onDelete }) => {
-  const { generatingThumbnails, regenerateThumbnail } = useLibraryStore();
+export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, onNormalise, onDelete }) => {
+  const { generatingThumbnails, regenerateThumbnail, renormaliseModel, showToast } = useLibraryStore();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [imgError, setImgError] = useState(false);
 
@@ -46,6 +47,20 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, o
       label: 'Move to...',
       icon: <FolderInput size={14} />,
       onClick: () => onMove(model)
+    },
+    {
+      label: 'Normalisation...',
+      icon: <Ruler size={14} />,
+      onClick: () => onNormalise(model)
+    },
+    {
+      label: 'Re-normalise',
+      icon: <RefreshCw size={14} />,
+      onClick: () => {
+        renormaliseModel(model.id)
+          .then(() => showToast(`Re-normalised "${model.name}"`, 'success'))
+          .catch((err) => showToast(err instanceof Error ? err.message : 'Re-normalise failed', 'error'));
+      }
     },
     {
       label: 'Regenerate Thumbnail',
@@ -160,8 +175,22 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, o
           >
             {model.name}
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {formatSize(model.sizeBytes)}
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{formatSize(model.sizeBytes)}</span>
+            {model.normalisation?.enabled && (
+              <span
+                title={`Normalised target size: ${model.normalisation.targetSize}`}
+                style={{
+                  fontSize: '9px',
+                  padding: '1px 4px',
+                  borderRadius: '3px',
+                  backgroundColor: 'rgba(59,130,246,0.18)',
+                  color: '#93c5fd',
+                }}
+              >
+                {model.normalisation.targetSize}m
+              </span>
+            )}
           </div>
         </div>
       </div>

@@ -6,3 +6,4 @@ export * from './background';
 export * from './admin';
 export * from './lighting';
 export * from './render';
+export * from './settings';

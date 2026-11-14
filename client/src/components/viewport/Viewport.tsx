@@ -10,6 +10,7 @@ import { SceneObjectRenderer } from './SceneObjectRenderer';
 import { TransformGizmo } from './TransformGizmo';
 import { ArrowKeyController } from './useArrowKeyMovement';
 import { LightingRig } from './LightingRig';
+import { toAppliedNormalisation } from '../../utils/modelNormalisation';
 
 const SnapToFloorController: React.FC = () => {
   const { scene } = useThree();
@@ -110,7 +111,12 @@ export const Viewport: React.FC = () => {
       }
     }
 
-    addObject(modelId, modelName, dropPosition);
+    addObject(
+      modelId,
+      modelName,
+      dropPosition,
+      toAppliedNormalisation(libraryModel?.normalisation)
+    );
   };
 
   return (

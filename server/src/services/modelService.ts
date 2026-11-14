@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDatabase } from '../db/connection';
 import { DATA_DIR, MODELS_DIR, THUMBNAILS_DIR } from '../config';
-import { LibraryModel } from '../../../shared/types';
+import { LibraryModel, ModelNormalisation } from '../../../shared/types';
 import { sanitizeName } from '../utils/sanitize';
 
 interface ModelRow {
@@ -14,6 +14,16 @@ interface ModelRow {
   thumbnail_path: string | null;
   size_bytes: number;
   created_at: string;
+  normalisation: string | null;
+}
+
+function parseNormalisation(raw: string | null): ModelNormalisation | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ModelNormalisation;
+  } catch {
+    return null;
+  }
 }
 
 function rowToModel(row: ModelRow): LibraryModel {
@@ -24,7 +34,8 @@ function rowToModel(row: ModelRow): LibraryModel {
     filePath: row.file_path,
     thumbnailPath: row.thumbnail_path,
     sizeBytes: row.size_bytes,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    normalisation: parseNormalisation(row.normalisation),
   };
 }
 
@@ -92,8 +103,8 @@ export function createModel(
   fs.renameSync(tempFilePath, destinationPath);
 
   db.prepare(`
-    INSERT INTO models (id, name, folder_id, file_path, thumbnail_path, size_bytes, created_at)
-    VALUES (?, ?, ?, ?, NULL, ?, ?)
+    INSERT INTO models (id, name, folder_id, file_path, thumbnail_path, size_bytes, created_at, normalisation)
+    VALUES (?, ?, ?, ?, NULL, ?, ?, NULL)
   `).run(id, cleanName, folderId, relativeFilePath, sizeBytes, createdAt);
 
   return {
@@ -103,7 +114,8 @@ export function createModel(
     filePath: relativeFilePath,
     thumbnailPath: null,
     sizeBytes,
-    createdAt
+    createdAt,
+    normalisation: null,
   };
 }
 
@@ -188,4 +200,60 @@ export function saveThumbnail(id: string, imageBuffer: Buffer): string {
 
   db.prepare('UPDATE models SET thumbnail_path = ? WHERE id = ?').run(relativeThumbPath, id);
   return relativeThumbPath;
+}
+
+function validateNormalisation(input: ModelNormalisation): ModelNormalisation {
+  const { enabled, targetSize, scaleFactor, pivotOffset, rawDimensions } = input;
+  if (typeof enabled !== 'boolean') {
+    throw new Error('Normalisation "enabled" must be a boolean.');
+  }
+  if (typeof targetSize !== 'number' || !Number.isFinite(targetSize) || targetSize <= 0) {
+    throw new Error('Normalisation "targetSize" must be a positive number.');
+  }
+  if (typeof scaleFactor !== 'number' || !Number.isFinite(scaleFactor) || scaleFactor <= 0) {
+    throw new Error('Normalisation "scaleFactor" must be a positive number.');
+  }
+  if (
+    !Array.isArray(pivotOffset) ||
+    pivotOffset.length !== 3 ||
+    !pivotOffset.every((n) => typeof n === 'number' && Number.isFinite(n))
+  ) {
+    throw new Error('Normalisation "pivotOffset" must be [x, y, z] finite numbers.');
+  }
+
+  const sanitized: ModelNormalisation = {
+    enabled,
+    targetSize,
+    scaleFactor,
+    pivotOffset: [pivotOffset[0], pivotOffset[1], pivotOffset[2]],
+  };
+
+  if (
+    Array.isArray(rawDimensions) &&
+    rawDimensions.length === 3 &&
+    rawDimensions.every((n) => typeof n === 'number' && Number.isFinite(n))
+  ) {
+    sanitized.rawDimensions = [rawDimensions[0], rawDimensions[1], rawDimensions[2]];
+  }
+  return sanitized;
+}
+
+export function updateModelNormalisation(
+  id: string,
+  normalisation: ModelNormalisation | null
+): LibraryModel {
+  const db = getDatabase();
+  const model = getModel(id);
+  if (!model) {
+    throw new Error(`Model ${id} not found`);
+  }
+
+  const validated = normalisation ? validateNormalisation(normalisation) : null;
+  const serialized = validated ? JSON.stringify(validated) : null;
+  db.prepare('UPDATE models SET normalisation = ? WHERE id = ?').run(serialized, id);
+
+  return {
+    ...model,
+    normalisation: validated,
+  };
 }

@@ -16,7 +16,8 @@ import {
   renameModel,
   moveModel,
   deleteModel,
-  saveThumbnail
+  saveThumbnail,
+  updateModelNormalisation
 } from '../src/services/modelService';
 
 async function runTests() {
@@ -216,6 +217,17 @@ async function runTests() {
   saveThumbnail(bModel.id, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
   const bScene = createScene('Backup Scene', sampleSceneData, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
 
+  // Also seed Phase 7.1 app settings & per-model normalisation
+  const { getAppSettings, updateAppSettings } = await import('../src/services/settingsService');
+  updateAppSettings({ normalization: { enabledByDefault: false, defaultTargetSize: 3.5 } });
+  updateModelNormalisation(bModel.id, {
+    enabled: true,
+    targetSize: 3.5,
+    scaleFactor: 0.7,
+    pivotOffset: [0.1, -0.5, -0.2],
+    rawDimensions: [5, 2, 1],
+  });
+
   // Also seed Phase 6 lighting preset, HDRI, and render to verify backups include them
   const { createCustomPreset, createHdri, listCustomPresets, listHdris, deleteCustomPreset, deleteHdri } = await import('../src/services/lightingService');
   const { createRender, listRenders, renameRender, deleteRender } = await import('../src/services/renderService');
@@ -283,6 +295,30 @@ async function runTests() {
   await confirmRestoreBackup(validation.token);
 
   assert(getModel(bModel.id)?.name === 'Backup Chair', 'Model restored identically');
+  assert.strictEqual(getModel(bModel.id)?.normalisation?.scaleFactor, 0.7, 'Model normalisation restored in backup');
+  assert.strictEqual(getAppSettings().normalization.defaultTargetSize, 3.5, 'App settings restored in backup');
+  assert.strictEqual(getAppSettings().normalization.enabledByDefault, false, 'App settings flag restored in backup');
+
+  // Verify v1 -> v2 DB migration adds missing models.normalisation column
+  const DatabaseMod = (await import('better-sqlite3')).default;
+  const { migrateDatabase } = await import('../src/db/schema');
+  const legacyDb = new DatabaseMod(':memory:');
+  legacyDb.exec(`
+    CREATE TABLE models (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      folder_id TEXT,
+      file_path TEXT NOT NULL,
+      thumbnail_path TEXT,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+  migrateDatabase(legacyDb, 1);
+  const migratedCols = legacyDb.prepare('PRAGMA table_info("models")').all() as { name: string }[];
+  assert(migratedCols.some((c) => c.name === 'normalisation'), 'v1 -> v2 migration must add models.normalisation');
+  legacyDb.close();
+  console.log('✓ Phase 7.1 settings, per-model normalisation, backup/restore & v1->v2 migration verified');
   assert(getScene(bScene.id)?.name === 'Backup Scene', 'Scene restored identically');
   assert(
     fs.readFileSync(path.join(DATA_DIR, bModelPath), 'utf-8') === 'glTF-backup-payload',

@@ -19,6 +19,7 @@ import {
   validateBackupFile,
 } from '../../api/admin';
 import { ResetConfirmModal } from './ResetConfirmModal';
+import { NormalisationAdminSection } from './NormalisationAdminSection';
 
 interface AdminPageProps {
   onBackToEditor: () => void;
@@ -420,6 +421,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToEditor }) => {
             </div>
           )}
         </section>
+
+        <NormalisationAdminSection cardStyle={cardStyle} onStatus={setStatusMsg} />
 
         {/* Danger Zone */}
         <section

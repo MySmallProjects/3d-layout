@@ -1,3 +1,8 @@
+export interface AppliedNormalisation {
+  scaleFactor: number;
+  pivotOffset: [number, number, number];
+}
+
 export interface SceneObject {
   id: string;
   modelId: string;
@@ -8,6 +13,8 @@ export interface SceneObject {
   visible: boolean;
   locked: boolean;
   parentId: string | null;
+  /** Snapshot of model normalisation applied when this instance was added; omitted for legacy scenes. */
+  appliedNormalisation?: AppliedNormalisation | null;
 }
 
 export interface BackgroundConfig {

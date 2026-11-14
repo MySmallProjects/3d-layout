@@ -9,7 +9,8 @@ import {
   renameModel,
   moveModel,
   deleteModel,
-  saveThumbnail
+  saveThumbnail,
+  updateModelNormalisation
 } from '../services/modelService';
 import { DATA_DIR, MAX_FILE_SIZE_BYTES } from '../config';
 
@@ -145,6 +146,18 @@ modelsRouter.patch('/:id/move', (req: Request, res: Response) => {
     res.json({ success: true, data: model });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to move model';
+    res.status(400).json({ success: false, error: message });
+  }
+});
+
+// PATCH /api/models/:id/normalisation
+modelsRouter.patch('/:id/normalisation', (req: Request, res: Response) => {
+  try {
+    const normalisation = req.body.normalisation === undefined ? null : req.body.normalisation;
+    const model = updateModelNormalisation(req.params.id, normalisation);
+    res.json({ success: true, data: model });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update model normalisation';
     res.status(400).json({ success: false, error: message });
   }
 });

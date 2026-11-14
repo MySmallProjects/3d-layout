@@ -12,6 +12,7 @@ import { scenesRouter } from './routes/scenes';
 import { adminRouter } from './routes/admin';
 import { lightingRouter } from './routes/lighting';
 import { rendersRouter } from './routes/renders';
+import { settingsRouter } from './routes/settings';
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/scenes', scenesRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/lighting', lightingRouter);
 app.use('/api/renders', rendersRouter);
+app.use('/api/settings', settingsRouter);
 
 // Root healthcheck
 app.get('/api/health', (_req, res) => {

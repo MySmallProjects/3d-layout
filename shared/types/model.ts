@@ -5,6 +5,14 @@ export interface Folder {
   createdAt: string;
 }
 
+export interface ModelNormalisation {
+  enabled: boolean;
+  targetSize: number;
+  scaleFactor: number;
+  pivotOffset: [number, number, number];
+  rawDimensions?: [number, number, number];
+}
+
 export interface LibraryModel {
   id: string;
   name: string;
@@ -13,6 +21,7 @@ export interface LibraryModel {
   thumbnailPath: string | null;
   sizeBytes: number;
   createdAt: string;
+  normalisation?: ModelNormalisation | null;
 }
 
 export interface FolderNode extends Folder {

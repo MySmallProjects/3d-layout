@@ -9,6 +9,7 @@ import {
   WebGLPathTracer,
 } from 'three-gpu-pathtracer';
 import { sphericalToCartesian } from '../constants/lightingPresets';
+import { wrapWithAppliedNormalisation } from './modelNormalisation';
 import {
   checkAbort,
   createThumbnailFromDataUrl,
@@ -250,10 +251,11 @@ export async function renderScenePathTraced(
           }
         });
       }
-      clone.position.set(...obj.position);
-      clone.rotation.set(...obj.rotation);
-      clone.scale.set(...obj.scale);
-      scene.add(clone);
+      const wrapped = wrapWithAppliedNormalisation(clone, obj.appliedNormalisation);
+      wrapped.position.set(...obj.position);
+      wrapped.rotation.set(...obj.rotation);
+      wrapped.scale.set(...obj.scale);
+      scene.add(wrapped);
     }
 
     checkAbort(signal);

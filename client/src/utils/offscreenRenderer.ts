@@ -12,6 +12,7 @@ import type { BackgroundConfig, CameraState, SceneObject } from '@shared/types/s
 import type { HdriRecord } from '@shared/types/lighting';
 import type { RenderSettings, ToneMappingMode } from '@shared/types/render';
 import { sphericalToCartesian } from '../constants/lightingPresets';
+import { wrapWithAppliedNormalisation } from './modelNormalisation';
 
 export function mapToneMapping(mode: ToneMappingMode): THREE.ToneMapping {
   switch (mode) {
@@ -255,10 +256,11 @@ export async function renderSceneOffscreen(
         }
       });
 
-      clone.position.set(...obj.position);
-      clone.rotation.set(...obj.rotation);
-      clone.scale.set(...obj.scale);
-      scene.add(clone);
+      const wrapped = wrapWithAppliedNormalisation(clone, obj.appliedNormalisation);
+      wrapped.position.set(...obj.position);
+      wrapped.rotation.set(...obj.rotation);
+      wrapped.scale.set(...obj.scale);
+      scene.add(wrapped);
     }
 
     checkAbort(signal);

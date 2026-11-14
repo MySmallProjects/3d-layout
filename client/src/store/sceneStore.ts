@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { SceneObject, BackgroundConfig } from '../types';
-import type { CameraState, SceneData } from '@shared/types/scene';
+import type { AppliedNormalisation, CameraState, SceneData } from '@shared/types/scene';
 import type { LightingConfig } from '@shared/types/lighting';
 import type { RenderSettings } from '@shared/types/render';
 import { DEFAULT_LIGHTING_CONFIG, DEFAULT_RENDER_SETTINGS } from '../constants/lightingPresets';
@@ -50,7 +50,12 @@ interface SceneState {
   transactionSnapshot: SceneObject[] | null;
 
   // Actions
-  addObject: (modelId: string, modelName: string, position: [number, number, number]) => SceneObject;
+  addObject: (
+    modelId: string,
+    modelName: string,
+    position: [number, number, number],
+    appliedNormalisation?: AppliedNormalisation | null
+  ) => SceneObject;
   selectObject: (id: string, multiSelect?: boolean) => void;
   deselectAll: () => void;
   setHoveredObjectId: (id: string | null) => void;
@@ -106,7 +111,13 @@ function cloneObjects(objs: SceneObject[]): SceneObject[] {
     ...o,
     position: [...o.position],
     rotation: [...o.rotation],
-    scale: [...o.scale]
+    scale: [...o.scale],
+    appliedNormalisation: o.appliedNormalisation
+      ? {
+          scaleFactor: o.appliedNormalisation.scaleFactor,
+          pivotOffset: [...o.appliedNormalisation.pivotOffset],
+        }
+      : o.appliedNormalisation,
   }));
 }
 
@@ -152,7 +163,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   future: [],
   transactionSnapshot: null,
 
-  addObject: (modelId, modelName, position) => {
+  addObject: (modelId, modelName, position, appliedNormalisation = null) => {
     const { objects, past } = get();
     const count = objects.filter((o) => o.modelId === modelId).length + 1;
     const name = count === 1 ? modelName : `${modelName} (${count})`;
@@ -167,7 +178,13 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       scale: [1, 1, 1],
       visible: true,
       locked: false,
-      parentId: null
+      parentId: null,
+      appliedNormalisation: appliedNormalisation
+        ? {
+            scaleFactor: appliedNormalisation.scaleFactor,
+            pivotOffset: [...appliedNormalisation.pivotOffset],
+          }
+        : null,
     };
 
     set({

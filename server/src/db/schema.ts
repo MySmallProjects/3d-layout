@@ -1,7 +1,14 @@
 import Database from 'better-sqlite3';
 import { getDatabase } from './connection';
 
-export const CURRENT_DB_SCHEMA_VERSION = 1;
+export const CURRENT_DB_SCHEMA_VERSION = 2;
+
+function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {
+  const cols = db.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE "${table}" ADD COLUMN ${column} ${definition}`);
+  }
+}
 
 export function initializeDatabase(): void {
   const db = getDatabase();
@@ -23,6 +30,7 @@ export function initializeDatabase(): void {
       thumbnail_path TEXT,
       size_bytes INTEGER NOT NULL,
       created_at TEXT NOT NULL,
+      normalisation TEXT,
       FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
     );
 
@@ -83,6 +91,8 @@ export function initializeDatabase(): void {
       camera TEXT NOT NULL
     );
   `);
+
+  ensureColumn(db, 'models', 'normalisation', 'TEXT');
 }
 
 /**
@@ -90,6 +100,8 @@ export function initializeDatabase(): void {
  */
 export function migrateDatabase(db: Database.Database, fromVersion: number): void {
   if (fromVersion >= CURRENT_DB_SCHEMA_VERSION) return;
+
+  ensureColumn(db, 'models', 'normalisation', 'TEXT');
 
   // Ensure any newer tables exist on older backups
   db.exec(`

@@ -94,16 +94,24 @@ export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object
     };
   }, [object.modelId, object.name, showToast]);
 
+  const appliedNorm = object.appliedNormalisation ?? null;
+
   // Compute local bounding box wireframe geometry for selection/hover outline
   const { outlineGeometry, outlineCenter } = useMemo(() => {
     if (!modelGroup) {
       return { outlineGeometry: null, outlineCenter: new THREE.Vector3() };
     }
-    const box = new THREE.Box3().setFromObject(modelGroup);
+    const rawBox = new THREE.Box3().setFromObject(modelGroup);
     const size = new THREE.Vector3();
     const center = new THREE.Vector3();
-    box.getSize(size);
-    box.getCenter(center);
+    rawBox.getSize(size);
+    rawBox.getCenter(center);
+
+    if (appliedNorm) {
+      center.add(new THREE.Vector3(...appliedNorm.pivotOffset));
+      center.multiplyScalar(appliedNorm.scaleFactor);
+      size.multiplyScalar(appliedNorm.scaleFactor);
+    }
 
     // Expand box slightly so the outline does not clip into geometry
     const padding = 0.02;
@@ -116,7 +124,7 @@ export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object
     boxGeo.dispose();
 
     return { outlineGeometry: edgesGeo, outlineCenter: center };
-  }, [modelGroup]);
+  }, [modelGroup, appliedNorm]);
 
   // Clean up geometry on unmount or model change
   useEffect(() => {
@@ -176,8 +184,18 @@ export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object
         </mesh>
       )}
 
-      {/* Render loaded GLTF model */}
-      {modelGroup && !loadError && <primitive object={modelGroup} />}
+      {/* Render loaded GLTF model (applying snapshot import normalisation when present) */}
+      {modelGroup && !loadError && (
+        appliedNorm ? (
+          <group scale={appliedNorm.scaleFactor}>
+            <group position={appliedNorm.pivotOffset}>
+              <primitive object={modelGroup} />
+            </group>
+          </group>
+        ) : (
+          <primitive object={modelGroup} />
+        )
+      )}
 
       {/* Accurate local selection / hover bounding outline */}
       {(isSelected || isHovered) && outlineGeometry && (

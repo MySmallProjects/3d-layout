@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { LibraryModel, ModelsListResponse } from '../types';
+import { LibraryModel, ModelNormalisation, ModelsListResponse } from '../types';
 
 export async function fetchModels(
   folderId?: string | null,
@@ -64,5 +64,15 @@ export async function uploadThumbnailApi(
   return apiRequest<{ thumbnailPath: string }>(`/api/models/${id}/thumbnail`, {
     method: 'POST',
     body: JSON.stringify({ dataUrl })
+  });
+}
+
+export async function updateModelNormalisationApi(
+  id: string,
+  normalisation: ModelNormalisation | null
+): Promise<LibraryModel> {
+  return apiRequest<LibraryModel>(`/api/models/${id}/normalisation`, {
+    method: 'PATCH',
+    body: JSON.stringify({ normalisation })
   });
 }
