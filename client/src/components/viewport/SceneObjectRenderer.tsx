@@ -29,6 +29,25 @@ export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object
   const isSelected = selectedObjectIds.includes(object.id);
   const isHovered = hoveredObjectId === object.id && !isSelected;
 
+  // Detect odd number of negative scale axes (mirrored winding)
+  const isNegativeDet = object.scale[0] * object.scale[1] * object.scale[2] < 0;
+
+  useEffect(() => {
+    if (!modelGroup) return;
+    modelGroup.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        mats.forEach((mat) => {
+          if (mat instanceof THREE.Material) {
+            // DoubleSide ensures mirrored meshes (negative determinant) don't disappear due to backface culling
+            mat.side = isNegativeDet ? THREE.DoubleSide : THREE.FrontSide;
+            mat.needsUpdate = true;
+          }
+        });
+      }
+    });
+  }, [modelGroup, isNegativeDet]);
+
   useEffect(() => {
     let isCancelled = false;
     const fileUrl = `/api/models/${object.modelId}/file`;

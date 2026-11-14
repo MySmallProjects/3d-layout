@@ -4,6 +4,7 @@ import { useSceneStore } from '../../store/sceneStore';
 import { useLibraryStore } from '../../store/libraryStore';
 import { SceneObject } from '../../types';
 import { SceneObjectRow } from './SceneObjectRow';
+import { PropertiesPanel } from './PropertiesPanel';
 import { Modal } from '../common/Modal';
 
 export const SceneObjectsPanel: React.FC = () => {
@@ -86,7 +87,7 @@ export const SceneObjectsPanel: React.FC = () => {
       </div>
 
       {/* Object List */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '6px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px', minHeight: '140px' }}>
         {objects.length === 0 ? (
           <div
             style={{
@@ -120,6 +121,9 @@ export const SceneObjectsPanel: React.FC = () => {
           ))
         )}
       </div>
+
+      {/* Properties Panel for Selected Object(s) */}
+      <PropertiesPanel />
 
       {/* Rename Modal */}
       <Modal

@@ -32,17 +32,18 @@ The agent ticks items as completed, and lists any skipped or simplified items un
   - Bounding box outline helper is used for edit-mode hover and selection outlines to avoid expensive full-screen post-processing passes during real-time multi-model editing.
 
 ## Phase 3: Manipulation, properties, undo/redo, help
-- [ ] Transform gizmo (W/E/R)
-- [ ] Arrow-key movement (X, Z camera-relative, PageUp/Down for Y; Shift/Alt steps)
-- [ ] Snapping (position, rotation, scale)
-- [ ] Snap to floor
-- [ ] Mirror X/Y/Z
-- [ ] Multi-select group transforms
-- [ ] Duplicate / delete / deselect
-- [ ] Properties panel with scrub and arrow-key fine adjustment
-- [ ] Undo/redo for all edits
-- [ ] Help page from single shortcuts file
+- [x] Transform gizmo (W/E/R)
+- [x] Arrow-key movement (X, Z camera-relative, PageUp/Down for Y; Shift/Alt steps)
+- [x] Snapping (position, rotation, scale)
+- [x] Snap to floor
+- [x] Mirror X/Y/Z
+- [x] Multi-select group transforms
+- [x] Duplicate / delete / deselect
+- [x] Properties panel with scrub and arrow-key fine adjustment
+- [x] Undo/redo for all edits
+- [x] Help page from single shortcuts file
 - Skipped/simplified:
+  - None. All Phase 3 features implemented cleanly.
 
 ## Phase 4: Scene save/load
 - [ ] Scenes API

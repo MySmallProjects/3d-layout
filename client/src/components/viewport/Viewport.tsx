@@ -1,5 +1,5 @@
-import React, { useRef } from 'react';
-import { Canvas } from '@react-three/fiber';
+import React, { useRef, useEffect } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSceneStore } from '../../store/sceneStore';
 import { useLibraryStore } from '../../store/libraryStore';
@@ -7,6 +7,46 @@ import { CameraControls } from './CameraControls';
 import { GridFloor } from './GridFloor';
 import { BackgroundRenderer } from './BackgroundRenderer';
 import { SceneObjectRenderer } from './SceneObjectRenderer';
+import { TransformGizmo } from './TransformGizmo';
+import { ArrowKeyController } from './useArrowKeyMovement';
+
+const SnapToFloorController: React.FC = () => {
+  const { scene } = useThree();
+  const { snapToFloorTimestamp, selectedObjectIds, objects, applyFloorOffset } = useSceneStore();
+  const prevRef = useRef(snapToFloorTimestamp);
+
+  useEffect(() => {
+    if (snapToFloorTimestamp === prevRef.current) return;
+    prevRef.current = snapToFloorTimestamp;
+
+    const offsets: { id: string; deltaY: number }[] = [];
+    for (const id of selectedObjectIds) {
+      const target = objects.find((o) => o.id === id);
+      if (!target || target.locked) continue;
+
+      const obj3d = scene.getObjectByName(`scene_obj_${id}`);
+      if (!obj3d) continue;
+
+      obj3d.updateWorldMatrix(true, true);
+      const box = new THREE.Box3();
+      obj3d.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          box.expandByObject(child);
+        }
+      });
+
+      if (!box.isEmpty()) {
+        offsets.push({ id, deltaY: -box.min.y });
+      }
+    }
+
+    if (offsets.length > 0) {
+      applyFloorOffset(offsets);
+    }
+  }, [snapToFloorTimestamp, selectedObjectIds, objects, scene, applyFloorOffset]);
+
+  return null;
+};
 
 export const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -93,6 +133,11 @@ export const Viewport: React.FC = () => {
 
         {/* Camera Navigation */}
         <CameraControls />
+
+        {/* Manipulation Gizmo & Controllers */}
+        <TransformGizmo />
+        <ArrowKeyController />
+        <SnapToFloorController />
 
         {/* Render all scene instances */}
         {objects.map((obj) => (

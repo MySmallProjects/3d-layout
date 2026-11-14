@@ -11,7 +11,8 @@ export const CameraControls: React.FC = () => {
   const {
     selectedObjectIds,
     focusTargetTimestamp,
-    resetCameraTimestamp
+    resetCameraTimestamp,
+    isGizmoDragging
   } = useSceneStore();
 
   const prevFocusRef = useRef(focusTargetTimestamp);
@@ -69,6 +70,7 @@ export const CameraControls: React.FC = () => {
     <DreiOrbitControls
       ref={controlsRef}
       makeDefault
+      enabled={!isGizmoDragging}
       enableDamping
       dampingFactor={0.08}
       minDistance={0.5}

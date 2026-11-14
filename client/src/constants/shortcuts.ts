@@ -1,62 +1,140 @@
+export interface ShortcutItem {
+  id: string;
+  key: string;
+  description: string;
+  match?: (e: KeyboardEvent) => boolean;
+}
+
 export interface ShortcutCategory {
   category: string;
-  items: {
-    key: string;
-    description: string;
-  }[];
+  items: ShortcutItem[];
 }
 
 export const SHORTCUTS: ShortcutCategory[] = [
   {
-    category: 'Camera',
+    category: 'Camera & Mouse',
     items: [
-      { key: 'F', description: 'Focus selected object' },
-      { key: 'Home', description: 'Reset camera view' }
+      { id: 'orbit', key: 'Left-drag', description: 'Orbit camera around target' },
+      { id: 'pan', key: 'Right-drag', description: 'Pan camera' },
+      { id: 'zoom', key: 'Scroll wheel', description: 'Zoom in / out' },
+      {
+        id: 'focus',
+        key: 'F',
+        description: 'Focus selected object',
+        match: (e) => !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'f' || e.key === 'F')
+      },
+      {
+        id: 'resetView',
+        key: 'Home',
+        description: 'Reset camera view',
+        match: (e) => e.key === 'Home'
+      }
     ]
   },
   {
     category: 'Selection',
     items: [
-      { key: 'Click', description: 'Select object' },
-      { key: 'Shift + Click', description: 'Multi-select objects' },
-      { key: 'Esc', description: 'Deselect all' },
-      { key: 'Delete / Backspace', description: 'Remove selected object' }
+      { id: 'select', key: 'Click', description: 'Select object (click empty to deselect)' },
+      { id: 'multiSelect', key: 'Shift + Click', description: 'Multi-select objects' },
+      {
+        id: 'deselect',
+        key: 'Esc',
+        description: 'Deselect all',
+        match: (e) => e.key === 'Escape'
+      },
+      {
+        id: 'delete',
+        key: 'Delete / Backspace',
+        description: 'Remove selected object(s)',
+        match: (e) => e.key === 'Delete' || e.key === 'Backspace'
+      }
     ]
   },
   {
     category: 'Transform',
     items: [
-      { key: 'W', description: 'Translate (move) mode' },
-      { key: 'E', description: 'Rotate mode' },
-      { key: 'R', description: 'Scale mode' }
+      {
+        id: 'modeTranslate',
+        key: 'W',
+        description: 'Translate (move) mode',
+        match: (e) => !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'w' || e.key === 'W')
+      },
+      {
+        id: 'modeRotate',
+        key: 'E',
+        description: 'Rotate mode',
+        match: (e) => !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'e' || e.key === 'E')
+      },
+      {
+        id: 'modeScale',
+        key: 'R',
+        description: 'Scale mode',
+        match: (e) => !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'r' || e.key === 'R')
+      }
     ]
   },
   {
     category: 'Arrow Keys (Selected Object)',
     items: [
-      { key: 'Left / Right', description: 'Move X axis' },
-      { key: 'Up / Down', description: 'Move Z axis (away / toward viewer)' },
-      { key: 'PageUp / PageDown', description: 'Move Y axis (vertical)' },
-      { key: 'Shift + Arrow', description: 'Larger movement step' },
-      { key: 'Alt + Arrow', description: 'Finer movement step' }
+      { id: 'moveX', key: 'Left / Right', description: 'Move X axis (relative to view)' },
+      { id: 'moveZ', key: 'Up / Down', description: 'Move Z axis (away / toward viewer)' },
+      { id: 'moveY', key: 'PageUp / PageDown', description: 'Move Y axis (vertical height)' },
+      { id: 'stepLarge', key: 'Shift + Arrow', description: 'Larger movement step (4x)' },
+      { id: 'stepFine', key: 'Alt + Arrow', description: 'Finer movement step (0.1x)' }
     ]
   },
   {
     category: 'Scene',
     items: [
-      { key: 'G', description: 'Toggle grid' },
-      { key: 'Ctrl + D', description: 'Duplicate selected' },
-      { key: 'Ctrl + Z', description: 'Undo' },
-      { key: 'Ctrl + Shift + Z', description: 'Redo' },
-      { key: 'Ctrl + S', description: 'Save scene' },
-      { key: 'Ctrl + G', description: 'Group selected' },
-      { key: 'Ctrl + Shift + G', description: 'Ungroup selected' }
+      {
+        id: 'toggleGrid',
+        key: 'G',
+        description: 'Toggle grid floor',
+        match: (e) => !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'g' || e.key === 'G')
+      },
+      {
+        id: 'duplicate',
+        key: 'Ctrl + D',
+        description: 'Duplicate selected',
+        match: (e) => (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'd' || e.key === 'D')
+      },
+      {
+        id: 'undo',
+        key: 'Ctrl + Z',
+        description: 'Undo last edit',
+        match: (e) => (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')
+      },
+      {
+        id: 'redo',
+        key: 'Ctrl + Shift + Z',
+        description: 'Redo last undone edit',
+        match: (e) => (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z')
+      },
+      { id: 'save', key: 'Ctrl + S', description: 'Save scene (Phase 4)' },
+      { id: 'group', key: 'Ctrl + G', description: 'Group selected (Phase 7)' },
+      { id: 'ungroup', key: 'Ctrl + Shift + G', description: 'Ungroup selected (Phase 7)' }
     ]
   },
   {
     category: 'General',
     items: [
-      { key: '?', description: 'Open help and keyboard shortcuts' }
+      {
+        id: 'help',
+        key: '?',
+        description: 'Open help and keyboard shortcuts',
+        match: (e) => e.key === '?' || (e.key === '/' && e.shiftKey)
+      }
     ]
   }
 ];
+
+export function matchShortcutAction(e: KeyboardEvent): string | null {
+  for (const cat of SHORTCUTS) {
+    for (const item of cat.items) {
+      if (item.match && item.match(e)) {
+        return item.id;
+      }
+    }
+  }
+  return null;
+}
