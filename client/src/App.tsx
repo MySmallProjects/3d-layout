@@ -3,8 +3,8 @@ import type { SceneDraft } from '@shared/types/scene';
 import { TopToolbar } from './components/layout/TopToolbar';
 import { VersionBadge } from './components/layout/VersionBadge';
 import { HelpModal } from './components/layout/HelpModal';
-import { AdminModal } from './components/layout/AdminModal';
 import { AboutModal } from './components/layout/AboutModal';
+import { AdminPage } from './components/admin/AdminPage';
 import { getVersionInfo } from './utils/version';
 import { LibraryPanel } from './components/library/LibraryPanel';
 import { Viewport } from './components/viewport/Viewport';
@@ -33,7 +33,7 @@ import {
 
 export const App: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isAdminRoute, setIsAdminRoute] = useState(() => window.location.pathname === '/admin');
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isScenesOpen, setIsScenesOpen] = useState(false);
   const [isSaveAsOpen, setIsSaveAsOpen] = useState(false);
@@ -46,6 +46,27 @@ export const App: React.FC = () => {
   const { versionDisplay, buildDateFormatted } = getVersionInfo();
 
   useEffect(() => {
+    loadLibrary();
+  }, [loadLibrary]);
+
+  useEffect(() => {
+    const onPopState = () => setIsAdminRoute(window.location.pathname === '/admin');
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const navigateToAdmin = useCallback(() => {
+    if (window.location.pathname !== '/admin') {
+      window.history.pushState({}, '', '/admin');
+    }
+    setIsAdminRoute(true);
+  }, []);
+
+  const navigateToEditor = useCallback(() => {
+    if (window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
+    setIsAdminRoute(false);
     loadLibrary();
   }, [loadLibrary]);
 
@@ -266,6 +287,10 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSaveScene]);
 
+  if (isAdminRoute) {
+    return <AdminPage onBackToEditor={navigateToEditor} />;
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
       {/* Hidden JSON import input */}
@@ -280,7 +305,7 @@ export const App: React.FC = () => {
       {/* Top Toolbar */}
       <TopToolbar
         onOpenHelp={() => setIsHelpOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenAdmin={navigateToAdmin}
         onOpenAbout={() => setIsAboutOpen(true)}
         onNewScene={handleNewScene}
         onOpenScenesModal={() => setIsScenesOpen(true)}
@@ -319,12 +344,11 @@ export const App: React.FC = () => {
         isOpen={isAboutOpen}
         onClose={() => setIsAboutOpen(false)}
         onOpenHelp={() => setIsHelpOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenAdmin={navigateToAdmin}
         versionDisplay={versionDisplay}
         buildDate={buildDateFormatted}
       />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-      <AdminModal isOpen={isAdminOpen} onClose={() => setIsAdminOpen(false)} />
       <ScenesModal
         isOpen={isScenesOpen}
         onClose={() => setIsScenesOpen(false)}

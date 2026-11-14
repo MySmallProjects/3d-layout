@@ -9,6 +9,7 @@ import { modelsRouter } from './routes/models';
 import { foldersRouter } from './routes/folders';
 import { backgroundsRouter } from './routes/backgrounds';
 import { scenesRouter } from './routes/scenes';
+import { adminRouter } from './routes/admin';
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use('/api/models', modelsRouter);
 app.use('/api/folders', foldersRouter);
 app.use('/api/backgrounds', backgroundsRouter);
 app.use('/api/scenes', scenesRouter);
+app.use('/api/admin', adminRouter);
 
 // Root healthcheck
 app.get('/api/health', (_req, res) => {

@@ -3,3 +3,4 @@ export * from './model';
 export * from './api';
 export * from './scene';
 export * from './background';
+export * from './admin';

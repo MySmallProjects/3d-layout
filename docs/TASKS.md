@@ -57,12 +57,13 @@ The agent ticks items as completed, and lists any skipped or simplified items un
   - None. All Phase 4 features implemented cleanly.
 
 ## Phase 5: Admin
-- [ ] Admin page and overview stats
-- [ ] Backup (consistent DB copy, streamed zip, manifest)
-- [ ] Restore (validate, temp extract, swap, migrate)
-- [ ] Reset everything (RESET confirmation)
-- [ ] Round-trip and malformed-zip tests
+- [x] Admin page and overview stats
+- [x] Backup (consistent DB copy, streamed zip, manifest)
+- [x] Restore (validate, temp extract, swap, migrate)
+- [x] Reset everything (RESET confirmation)
+- [x] Round-trip and malformed-zip tests
 - Skipped/simplified:
+  - None. All Phase 5 features implemented cleanly.
 
 ## Phase 6: Lighting, rendering, gallery
 - [ ] 6a Lighting presets (built-in, editable, custom, HDRI upload)

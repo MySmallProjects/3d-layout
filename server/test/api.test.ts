@@ -194,6 +194,104 @@ async function runTests() {
   assert.strictEqual(getScene(createdScene.id), null);
   console.log('✓ Scene CRUD and draft lifecycle verified');
 
+  // 11. Phase 5: Admin Backup, Reset, Restore Round-Trip & Malformed Zip Rejection
+  console.log('--- Running Phase 5 Admin Tests ---');
+  const os = await import('os');
+  const archiverMod = (await (Function('return import("archiver")')())) as {
+    ZipArchive: new () => import('archiver').Archiver;
+  };
+  const {
+    getAdminOverview,
+    createBackupArchive,
+    resetAllData,
+  } = await import('../src/services/adminService');
+  const { validateBackupZip, confirmRestoreBackup } = await import('../src/services/restoreService');
+
+  // Seed real data for backup round-trip
+  const bFolder = createFolder('Backup Folder', null);
+  const bTempPath = path.join(os.tmpdir(), `backup-test-${Date.now()}.glb`);
+  fs.writeFileSync(bTempPath, 'glTF-backup-payload');
+  const bModel = createModel('Backup Chair.glb', bFolder.id, bTempPath, 19);
+  const bModelPath = bModel.filePath;
+  saveThumbnail(bModel.id, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+  const bScene = createScene('Backup Scene', sampleSceneData, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
+
+  const overviewBefore = getAdminOverview();
+  assert(overviewBefore.counts.models >= 1);
+  assert(overviewBefore.counts.scenes >= 1);
+
+  const backupZipPath = path.join(os.tmpdir(), `test-backup-${Date.now()}.zip`);
+  await createBackupArchive(fs.createWriteStream(backupZipPath));
+  assert(fs.existsSync(backupZipPath) && fs.statSync(backupZipPath).size > 0, 'Backup zip created');
+
+  // Wipe via reset
+  resetAllData('RESET');
+  assert.strictEqual(getModel(bModel.id), null, 'Model must be wiped after reset');
+  assert.strictEqual(getScene(bScene.id), null, 'Scene must be wiped after reset');
+  assert(!fs.existsSync(path.join(DATA_DIR, bModelPath)), 'Model file must be deleted on reset');
+
+  // Validate and restore
+  const validation = await validateBackupZip(backupZipPath);
+  assert.strictEqual(validation.manifest.counts.models, overviewBefore.counts.models);
+  assert.strictEqual(validation.manifest.counts.scenes, overviewBefore.counts.scenes);
+  await confirmRestoreBackup(validation.token);
+
+  assert(getModel(bModel.id)?.name === 'Backup Chair', 'Model restored identically');
+  assert(getScene(bScene.id)?.name === 'Backup Scene', 'Scene restored identically');
+  assert(
+    fs.readFileSync(path.join(DATA_DIR, bModelPath), 'utf-8') === 'glTF-backup-payload',
+    'Model file bytes restored identically'
+  );
+  console.log('✓ Backup -> Reset -> Restore round-trip verified');
+
+  // Reject malformed zip (non-zip bytes)
+  const badZipPath = path.join(os.tmpdir(), `bad-backup-${Date.now()}.zip`);
+  fs.writeFileSync(badZipPath, 'not-a-zip-file');
+  let rejectedMalformed = false;
+  try {
+    await validateBackupZip(badZipPath);
+  } catch {
+    rejectedMalformed = true;
+  }
+  assert(rejectedMalformed, 'Malformed zip must be rejected');
+  if (fs.existsSync(badZipPath)) fs.unlinkSync(badZipPath);
+
+  // Reject zip with path traversal
+  const traversalZipPath = path.join(os.tmpdir(), `traversal-backup-${Date.now()}.zip`);
+  await new Promise<void>((resolve, reject) => {
+    const out = fs.createWriteStream(traversalZipPath);
+    const arc = new archiverMod.ZipArchive();
+    out.on('close', () => resolve());
+    arc.on('error', (err: Error) => reject(err));
+    arc.pipe(out);
+    arc.append('evil', { name: '../evil.txt' });
+    arc.finalize();
+  });
+  let rejectedTraversal = false;
+  try {
+    await validateBackupZip(traversalZipPath);
+  } catch {
+    rejectedTraversal = true;
+  }
+  assert(rejectedTraversal, 'Path traversal zip must be rejected');
+  if (fs.existsSync(traversalZipPath)) fs.unlinkSync(traversalZipPath);
+
+  // Verify existing data untouched after rejected zips
+  assert(getModel(bModel.id)?.name === 'Backup Chair', 'Existing data untouched after rejected zips');
+
+  // Cleanup test data
+  deleteScene(bScene.id);
+  deleteModel(bModel.id);
+  deleteFolder(bFolder.id, true);
+  console.log('✓ Malformed and path-traversal zip rejection verified');
+
+  // Clean up isolated temp DATA_DIR if running in tmpdir
+  if (DATA_DIR.startsWith(os.tmpdir())) {
+    const { closeDatabase } = await import('../src/db/connection');
+    closeDatabase();
+    fs.rmSync(DATA_DIR, { recursive: true, force: true });
+  }
+
   console.log('✓ All integration tests passed successfully!');
 }
 

@@ -7,21 +7,25 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/server/src/index.js",
-    "test": "tsx test/api.test.ts"
+    "test": "DATA_DIR=/tmp/3d-layout-test-data tsx test/api.test.ts"
   },
   "dependencies": {
+    "archiver": "8.0.0",
     "better-sqlite3": "11.8.1",
     "cors": "2.8.5",
     "dotenv": "16.4.7",
     "express": "4.21.2",
-    "multer": "1.4.5-lts.1"
+    "multer": "1.4.5-lts.1",
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
+    "@types/archiver": "8.0.0",
     "@types/better-sqlite3": "7.6.12",
     "@types/cors": "2.8.17",
     "@types/express": "4.17.21",
     "@types/multer": "1.4.12",
     "@types/node": "22.10.7",
+    "@types/yauzl": "3.4.0",
     "tsx": "4.19.2",
     "typescript": "5.7.3"
   }

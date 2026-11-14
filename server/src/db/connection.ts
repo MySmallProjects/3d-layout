@@ -14,3 +14,15 @@ export function getDatabase(): Database.Database {
   }
   return dbInstance;
 }
+
+export function closeDatabase(): void {
+  if (dbInstance) {
+    try {
+      dbInstance.pragma('wal_checkpoint(TRUNCATE)');
+    } catch {
+      // Ignore checkpoint errors if closing
+    }
+    dbInstance.close();
+    dbInstance = null;
+  }
+}
