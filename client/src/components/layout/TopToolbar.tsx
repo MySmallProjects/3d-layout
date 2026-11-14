@@ -13,7 +13,13 @@ import {
   RotateCcw,
   Undo2,
   Redo2,
-  Magnet
+  Magnet,
+  FilePlus,
+  FolderOpen,
+  Save,
+  FileDown,
+  FileUp,
+  ChevronDown
 } from 'lucide-react';
 import { useSceneStore } from '../../store/sceneStore';
 import { BackgroundModal } from '../scene/BackgroundModal';
@@ -22,9 +28,25 @@ interface TopToolbarProps {
   onOpenHelp: () => void;
   onOpenAdmin: () => void;
   onOpenAbout: () => void;
+  onNewScene: () => void;
+  onOpenScenesModal: () => void;
+  onSaveScene: () => void;
+  onSaveSceneAs: () => void;
+  onExportScene: () => void;
+  onImportScene: () => void;
 }
 
-export const TopToolbar: React.FC<TopToolbarProps> = ({ onOpenHelp, onOpenAdmin, onOpenAbout }) => {
+export const TopToolbar: React.FC<TopToolbarProps> = ({
+  onOpenHelp,
+  onOpenAdmin,
+  onOpenAbout,
+  onNewScene,
+  onOpenScenesModal,
+  onSaveScene,
+  onSaveSceneAs,
+  onExportScene,
+  onImportScene,
+}) => {
   const {
     gridVisible,
     toggleGrid,
@@ -38,24 +60,31 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onOpenHelp, onOpenAdmin,
     past,
     future,
     undo,
-    redo
+    redo,
+    currentSceneName,
+    isDirty
   } = useSceneStore();
 
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
   const [isSnapMenuOpen, setIsSnapMenuOpen] = useState(false);
+  const [isSceneMenuOpen, setIsSceneMenuOpen] = useState(false);
   const snapMenuRef = useRef<HTMLDivElement>(null);
+  const sceneMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (snapMenuRef.current && !snapMenuRef.current.contains(e.target as Node)) {
         setIsSnapMenuOpen(false);
       }
+      if (sceneMenuRef.current && !sceneMenuRef.current.contains(e.target as Node)) {
+        setIsSceneMenuOpen(false);
+      }
     };
-    if (isSnapMenuOpen) {
+    if (isSnapMenuOpen || isSceneMenuOpen) {
       window.addEventListener('mousedown', handleClickOutside);
     }
     return () => window.removeEventListener('mousedown', handleClickOutside);
-  }, [isSnapMenuOpen]);
+  }, [isSnapMenuOpen, isSceneMenuOpen]);
 
   const anySnapActive = snap.positionEnabled || snap.rotationEnabled || snap.scaleEnabled;
 
@@ -92,6 +121,123 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ onOpenHelp, onOpenAdmin,
             <Box size={18} color="var(--accent)" />
             <span>3D Scene Composer</span>
           </button>
+
+          <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color)' }} />
+
+          {/* Scene Menu & Current Scene Name */}
+          <div ref={sceneMenuRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              onClick={() => setIsSceneMenuOpen((p) => !p)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: 500,
+                backgroundColor: isSceneMenuOpen ? 'var(--bg-card-hover)' : 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-main)'
+              }}
+            >
+              <span>Scene</span>
+              <ChevronDown size={13} />
+            </button>
+
+            <span
+              title={isDirty ? `${currentSceneName} (Unsaved changes)` : currentSceneName}
+              style={{
+                fontSize: '12px',
+                color: isDirty ? '#fbbf24' : 'var(--text-muted)',
+                maxWidth: '180px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {currentSceneName}
+              {isDirty ? ' *' : ''}
+            </span>
+
+            {isSceneMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '6px',
+                  width: '190px',
+                  backgroundColor: 'var(--bg-panel)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.45)',
+                  padding: '4px',
+                  zIndex: 100,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px'
+                }}
+              >
+                <button
+                  onClick={() => { setIsSceneMenuOpen(false); onNewScene(); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <FilePlus size={14} />
+                  <span>New Scene</span>
+                </button>
+                <button
+                  onClick={() => { setIsSceneMenuOpen(false); onOpenScenesModal(); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <FolderOpen size={14} />
+                  <span>Open Scene...</span>
+                </button>
+                <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '2px 0' }} />
+                <button
+                  onClick={() => { setIsSceneMenuOpen(false); onSaveScene(); }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Save size={14} /> Save</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Ctrl+S</span>
+                </button>
+                <button
+                  onClick={() => { setIsSceneMenuOpen(false); onSaveSceneAs(); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <Save size={14} />
+                  <span>Save As...</span>
+                </button>
+                <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '2px 0' }} />
+                <button
+                  onClick={() => { setIsSceneMenuOpen(false); onExportScene(); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <FileDown size={14} />
+                  <span>Export JSON</span>
+                </button>
+                <button
+                  onClick={() => { setIsSceneMenuOpen(false); onImportScene(); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <FileUp size={14} />
+                  <span>Import JSON...</span>
+                </button>
+              </div>
+            )}
+          </div>
 
           <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color)' }} />
 

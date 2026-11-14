@@ -17,9 +17,44 @@ export interface BackgroundConfig {
   equirectangular?: boolean;
 }
 
+export interface CameraState {
+  position: [number, number, number];
+  target: [number, number, number];
+}
+
 export interface SceneData {
   schemaVersion: number;
   objects: SceneObject[];
   gridVisible: boolean;
   background: BackgroundConfig;
+  camera: CameraState;
+  lighting: Record<string, unknown>;
+  renderSettings: Record<string, unknown>;
+  groundPlane?: Record<string, unknown>;
+  cameraBookmarks?: unknown[];
+}
+
+export interface SceneRecord {
+  id: string;
+  name: string;
+  thumbnailPath: string | null;
+  createdAt: string;
+  updatedAt: string;
+  data: SceneData;
+}
+
+export interface SceneListItem {
+  id: string;
+  name: string;
+  thumbnailPath: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SceneDraft {
+  id: string;
+  sceneId: string | null;
+  sceneName: string;
+  data: SceneData;
+  updatedAt: string;
 }

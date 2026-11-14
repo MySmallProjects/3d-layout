@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { SceneObject, BackgroundConfig } from '../types';
+import type { CameraState, SceneData } from '@shared/types/scene';
 
 export type TransformMode = 'translate' | 'rotate' | 'scale';
 
@@ -23,6 +24,13 @@ interface SceneState {
   focusTargetTimestamp: number;
   resetCameraTimestamp: number;
   snapToFloorTimestamp: number;
+
+  // Scene Metadata & Persistence (Phase 4)
+  currentSceneId: string | null;
+  currentSceneName: string;
+  isDirty: boolean;
+  cameraState: CameraState;
+  pendingCameraRestoreTimestamp: number;
 
   // Transform & Snapping
   transformMode: TransformMode;
@@ -72,6 +80,14 @@ interface SceneState {
   commitTransaction: () => void;
   undo: () => void;
   redo: () => void;
+
+  // Scene Persistence (Phase 4)
+  setCameraState: (camera: CameraState) => void;
+  loadSceneData: (data: SceneData, meta: { id: string | null; name: string }, isDirty?: boolean) => void;
+  resetScene: () => void;
+  setSceneMeta: (meta: { id?: string | null; name?: string }) => void;
+  markClean: () => void;
+  serializeScene: (cameraOverride?: CameraState) => SceneData;
 }
 
 function cloneObjects(objs: SceneObject[]): SceneObject[] {
@@ -100,6 +116,12 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   focusTargetTimestamp: 0,
   resetCameraTimestamp: 0,
   snapToFloorTimestamp: 0,
+
+  currentSceneId: null,
+  currentSceneName: 'Untitled Scene',
+  isDirty: false,
+  cameraState: { position: [8, 6, 8], target: [0, 0, 0] },
+  pendingCameraRestoreTimestamp: 0,
 
   transformMode: 'translate',
   isGizmoDragging: false,
@@ -138,7 +160,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       past: pushPast(past, objects),
       future: [],
       objects: [...objects, newObject],
-      selectedObjectIds: [id]
+      selectedObjectIds: [id],
+      isDirty: true
     });
 
     return newObject;
@@ -179,7 +202,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set({
       past: pushPast(past, objects),
       future: [],
-      objects: objects.map((o) => (o.id === id ? { ...o, visible: !o.visible } : o))
+      objects: objects.map((o) => (o.id === id ? { ...o, visible: !o.visible } : o)),
+      isDirty: true
     });
   },
 
@@ -192,7 +216,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       objects: objects.map((o) => (o.id === id ? { ...o, locked: isNowLocked } : o)),
       selectedObjectIds: isNowLocked
         ? selectedObjectIds.filter((item) => item !== id)
-        : selectedObjectIds
+        : selectedObjectIds,
+      isDirty: true
     });
   },
 
@@ -206,7 +231,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set({
       past: pushPast(past, objects),
       future: [],
-      objects: objects.map((o) => (o.id === id ? { ...o, name: trimmed } : o))
+      objects: objects.map((o) => (o.id === id ? { ...o, name: trimmed } : o)),
+      isDirty: true
     });
   },
 
@@ -235,7 +261,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       past: pushPast(past, objects),
       future: [],
       objects: [...objects, duplicate],
-      selectedObjectIds: [newId]
+      selectedObjectIds: [newId],
+      isDirty: true
     });
 
     return duplicate;
@@ -277,7 +304,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         past: pushPast(past, objects),
         future: [],
         objects: currentObjects,
-        selectedObjectIds: newSelectedIds
+        selectedObjectIds: newSelectedIds,
+        isDirty: true
       });
     }
   },
@@ -294,20 +322,21 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       future: [],
       objects: remaining,
       selectedObjectIds: selectedObjectIds.filter((id) => !idSet.has(id)),
-      hoveredObjectId: idSet.has(hoveredObjectId || '') ? null : hoveredObjectId
+      hoveredObjectId: idSet.has(hoveredObjectId || '') ? null : hoveredObjectId,
+      isDirty: true
     });
   },
 
   toggleGrid: () => {
-    set((state) => ({ gridVisible: !state.gridVisible }));
+    set((state) => ({ gridVisible: !state.gridVisible, isDirty: true }));
   },
 
   setGridVisible: (visible) => {
-    set({ gridVisible: visible });
+    set({ gridVisible: visible, isDirty: true });
   },
 
   setBackground: (config) => {
-    set({ background: config });
+    set({ background: config, isDirty: true });
   },
 
   triggerFocus: () => {
@@ -341,10 +370,11 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       set({
         past: pushPast(past, objects),
         future: [],
-        objects: updated
+        objects: updated,
+        isDirty: true
       });
     } else {
-      set({ objects: updated });
+      set({ objects: updated, isDirty: true });
     }
   },
 
@@ -360,7 +390,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           rotation: u.rotation ?? o.rotation,
           scale: u.scale ?? o.scale
         };
-      })
+      }),
+      isDirty: true
     }));
   },
 
@@ -375,7 +406,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         const nextScale: [number, number, number] = [...o.scale];
         nextScale[idx] = -nextScale[idx];
         return { ...o, scale: nextScale };
-      })
+      }),
+      isDirty: true
     });
   },
 
@@ -393,7 +425,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           ...o,
           position: [o.position[0], o.position[1] + dy, o.position[2]]
         };
-      })
+      }),
+      isDirty: true
     });
   },
 
@@ -412,7 +445,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       set({
         past: pushPast(past, transactionSnapshot),
         future: [],
-        transactionSnapshot: null
+        transactionSnapshot: null,
+        isDirty: true
       });
     } else {
       set({ transactionSnapshot: null });
@@ -432,7 +466,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       future: [cloneObjects(objects), ...future].slice(0, MAX_HISTORY_DEPTH),
       objects: cloneObjects(previous),
       selectedObjectIds: selectedObjectIds.filter((id) => validIds.has(id)),
-      transactionSnapshot: null
+      transactionSnapshot: null,
+      isDirty: true
     });
   },
 
@@ -449,7 +484,74 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       future: nextFuture,
       objects: cloneObjects(next),
       selectedObjectIds: selectedObjectIds.filter((id) => validIds.has(id)),
-      transactionSnapshot: null
+      transactionSnapshot: null,
+      isDirty: true
     });
+  },
+
+  setCameraState: (camera) => {
+    set({ cameraState: camera });
+  },
+
+  loadSceneData: (data, meta, isDirty = false) => {
+    set({
+      objects: cloneObjects(data.objects || []),
+      gridVisible: data.gridVisible ?? true,
+      background: data.background || { type: 'color', color: '#1a1c23' },
+      cameraState: data.camera || { position: [8, 6, 8], target: [0, 0, 0] },
+      pendingCameraRestoreTimestamp: Date.now(),
+      selectedObjectIds: [],
+      hoveredObjectId: null,
+      past: [],
+      future: [],
+      transactionSnapshot: null,
+      currentSceneId: meta.id,
+      currentSceneName: meta.name,
+      isDirty
+    });
+  },
+
+  resetScene: () => {
+    set({
+      objects: [],
+      selectedObjectIds: [],
+      hoveredObjectId: null,
+      gridVisible: true,
+      background: { type: 'color', color: '#1a1c23' },
+      cameraState: { position: [8, 6, 8], target: [0, 0, 0] },
+      pendingCameraRestoreTimestamp: Date.now(),
+      past: [],
+      future: [],
+      transactionSnapshot: null,
+      currentSceneId: null,
+      currentSceneName: 'Untitled Scene',
+      isDirty: false
+    });
+  },
+
+  setSceneMeta: (meta) => {
+    set((state) => ({
+      currentSceneId: meta.id !== undefined ? meta.id : state.currentSceneId,
+      currentSceneName: meta.name !== undefined ? meta.name : state.currentSceneName
+    }));
+  },
+
+  markClean: () => {
+    set({ isDirty: false });
+  },
+
+  serializeScene: (cameraOverride) => {
+    const { objects, gridVisible, background, cameraState } = get();
+    return {
+      schemaVersion: 1,
+      objects: cloneObjects(objects),
+      gridVisible,
+      background,
+      camera: cameraOverride ?? cameraState,
+      lighting: {},
+      renderSettings: {},
+      groundPlane: {},
+      cameraBookmarks: []
+    };
   }
 }));

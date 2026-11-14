@@ -110,7 +110,12 @@ export const SHORTCUTS: ShortcutCategory[] = [
         description: 'Redo last undone edit',
         match: (e) => (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'z' || e.key === 'Z')
       },
-      { id: 'save', key: 'Ctrl + S', description: 'Save scene (Phase 4)' },
+      {
+        id: 'save',
+        key: 'Ctrl + S',
+        description: 'Save scene',
+        match: (e) => (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 's' || e.key === 'S'),
+      },
       { id: 'group', key: 'Ctrl + G', description: 'Group selected (Phase 7)' },
       { id: 'ungroup', key: 'Ctrl + Shift + G', description: 'Ungroup selected (Phase 7)' }
     ]

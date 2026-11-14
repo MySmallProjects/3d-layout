@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Unlock, Box, Copy, Edit2, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Unlock, Box, Copy, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { SceneObject, LibraryModel } from '../../types';
 import { useSceneStore } from '../../store/sceneStore';
 import { ContextMenu, ContextMenuItem } from '../library/ContextMenu';
@@ -125,18 +125,31 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
 
         {/* Object Name */}
         <span
-          title={object.name}
+          title={
+            !model
+              ? `${object.name} — Missing library model (${object.modelId})`
+              : object.name
+          }
           style={{
             flex: 1,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            color: isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+            color: !model ? '#fbbf24' : isSelected ? 'var(--text-main)' : 'var(--text-muted)',
             fontWeight: isSelected ? 500 : 400
           }}
         >
           {object.name}
         </span>
+
+        {!model && (
+          <span
+            title="Model missing from library"
+            style={{ display: 'inline-flex', alignItems: 'center', color: '#fbbf24', flexShrink: 0 }}
+          >
+            <AlertTriangle size={13} />
+          </span>
+        )}
 
         {/* Quick action buttons: Visibility & Lock */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }} onClick={(e) => e.stopPropagation()}>

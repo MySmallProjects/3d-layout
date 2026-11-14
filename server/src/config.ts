@@ -32,6 +32,7 @@ export const DATA_DIR = process.env.DATA_DIR
 
 export const MODELS_DIR = path.join(DATA_DIR, 'models');
 export const THUMBNAILS_DIR = path.join(DATA_DIR, 'thumbnails');
+export const SCENE_THUMBNAILS_DIR = path.join(THUMBNAILS_DIR, 'scenes');
 export const BACKGROUNDS_DIR = path.join(DATA_DIR, 'backgrounds');
 export const DB_PATH = path.join(DATA_DIR, 'database.sqlite');
 export const CLIENT_DIST = path.join(PROJECT_ROOT, 'client', 'dist');
@@ -44,7 +45,7 @@ export const MAX_FILE_SIZE_BYTES = parseInt(
 
 // Ensure required directories exist
 export function ensureDirectories(): void {
-  for (const dir of [DATA_DIR, MODELS_DIR, THUMBNAILS_DIR, BACKGROUNDS_DIR]) {
+  for (const dir of [DATA_DIR, MODELS_DIR, THUMBNAILS_DIR, SCENE_THUMBNAILS_DIR, BACKGROUNDS_DIR]) {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }

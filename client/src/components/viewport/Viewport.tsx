@@ -48,6 +48,22 @@ const SnapToFloorController: React.FC = () => {
   return null;
 };
 
+const CaptureController: React.FC = () => {
+  const { gl, scene, camera } = useThree();
+
+  useEffect(() => {
+    (window as any).__captureViewportThumbnail = () => {
+      gl.render(scene, camera);
+      return gl.domElement.toDataURL('image/png');
+    };
+    return () => {
+      delete (window as any).__captureViewportThumbnail;
+    };
+  }, [gl, scene, camera]);
+
+  return null;
+};
+
 export const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { objects, addObject, deselectAll } = useSceneStore();
@@ -138,6 +154,7 @@ export const Viewport: React.FC = () => {
         <TransformGizmo />
         <ArrowKeyController />
         <SnapToFloorController />
+        <CaptureController />
 
         {/* Render all scene instances */}
         {objects.map((obj) => (

@@ -33,5 +33,22 @@ export function initializeDatabase(): void {
       size_bytes INTEGER NOT NULL,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS scenes (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      thumbnail_path TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      data TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS scene_drafts (
+      id TEXT PRIMARY KEY,
+      scene_id TEXT,
+      scene_name TEXT NOT NULL,
+      data TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }

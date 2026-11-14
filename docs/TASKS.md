@@ -46,14 +46,15 @@ The agent ticks items as completed, and lists any skipped or simplified items un
   - None. All Phase 3 features implemented cleanly.
 
 ## Phase 4: Scene save/load
-- [ ] Scenes API
-- [ ] Save / Save As / Open / New / Duplicate / Rename / Delete
-- [ ] Scene list with thumbnails
-- [ ] Missing model handling
-- [ ] Unsaved changes indicator and warnings
-- [ ] Autosave draft + recovery
-- [ ] JSON export / import
+- [x] Scenes API
+- [x] Save / Save As / Open / New / Duplicate / Rename / Delete
+- [x] Scene list with thumbnails
+- [x] Missing model handling
+- [x] Unsaved changes indicator and warnings
+- [x] Autosave draft + recovery
+- [x] JSON export / import
 - Skipped/simplified:
+  - None. All Phase 4 features implemented cleanly.
 
 ## Phase 5: Admin
 - [ ] Admin page and overview stats

@@ -137,6 +137,63 @@ async function runTests() {
   assert.strictEqual(db.prepare('SELECT * FROM backgrounds WHERE id = ?').get(bgId), undefined);
   console.log('✓ Background database storage and cleanup verified');
 
+  // 10. Phase 4: Scenes & Drafts
+  console.log('--- Running Phase 4 Scene Tests ---');
+  const {
+    createScene,
+    listScenes,
+    getScene,
+    updateScene,
+    renameScene,
+    duplicateScene,
+    deleteScene,
+    saveDraft,
+    getDraft,
+    clearDraft,
+  } = await import('../src/services/sceneService');
+
+  const sampleSceneData = {
+    schemaVersion: 1,
+    objects: [],
+    gridVisible: true,
+    background: { type: 'none' as const },
+    camera: { position: [5, 5, 5] as [number, number, number], target: [0, 0, 0] as [number, number, number] },
+    lighting: {},
+    renderSettings: {},
+  };
+
+  const createdScene = createScene('Test Room', sampleSceneData);
+  assert(createdScene.id, 'Created scene must have an id');
+  assert.strictEqual(createdScene.name, 'Test Room');
+  assert(listScenes().some((s) => s.id === createdScene.id), 'Scene must appear in listScenes');
+
+  const fetchedScene = getScene(createdScene.id);
+  assert(fetchedScene && fetchedScene.data.schemaVersion === 1);
+
+  const updatedScene = updateScene(createdScene.id, undefined, {
+    ...sampleSceneData,
+    gridVisible: false,
+  });
+  assert.strictEqual(updatedScene?.data.gridVisible, false);
+
+  const renamedScene = renameScene(createdScene.id, 'Renamed Room');
+  assert.strictEqual(renamedScene?.name, 'Renamed Room');
+
+  const dupScene = duplicateScene(createdScene.id);
+  assert(dupScene && dupScene.id !== createdScene.id);
+  assert.strictEqual(dupScene.name, 'Copy of Renamed Room');
+
+  saveDraft(createdScene.id, 'Renamed Room', sampleSceneData);
+  const draft = getDraft();
+  assert(draft && draft.sceneId === createdScene.id);
+  clearDraft();
+  assert.strictEqual(getDraft(), null);
+
+  deleteScene(createdScene.id);
+  deleteScene(dupScene.id);
+  assert.strictEqual(getScene(createdScene.id), null);
+  console.log('✓ Scene CRUD and draft lifecycle verified');
+
   console.log('✓ All integration tests passed successfully!');
 }
 

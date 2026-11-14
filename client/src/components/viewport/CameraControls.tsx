@@ -12,11 +12,40 @@ export const CameraControls: React.FC = () => {
     selectedObjectIds,
     focusTargetTimestamp,
     resetCameraTimestamp,
+    pendingCameraRestoreTimestamp,
+    cameraState,
+    setCameraState,
     isGizmoDragging
   } = useSceneStore();
 
   const prevFocusRef = useRef(focusTargetTimestamp);
   const prevResetRef = useRef(resetCameraTimestamp);
+  const prevRestoreRef = useRef(pendingCameraRestoreTimestamp);
+
+  // Expose live camera state getter for scene save & autosave
+  useEffect(() => {
+    (window as any).__getCameraState = () => {
+      const target = controlsRef.current?.target;
+      return {
+        position: [camera.position.x, camera.position.y, camera.position.z] as [number, number, number],
+        target: target ? [target.x, target.y, target.z] as [number, number, number] : [0, 0, 0] as [number, number, number]
+      };
+    };
+    return () => {
+      delete (window as any).__getCameraState;
+    };
+  }, [camera]);
+
+  // Restore camera state when loading or resetting a scene
+  useEffect(() => {
+    if (pendingCameraRestoreTimestamp === prevRestoreRef.current) return;
+    prevRestoreRef.current = pendingCameraRestoreTimestamp;
+    if (!controlsRef.current) return;
+
+    camera.position.set(...cameraState.position);
+    controlsRef.current.target.set(...cameraState.target);
+    controlsRef.current.update();
+  }, [pendingCameraRestoreTimestamp, cameraState, camera]);
 
   // Focus selected object(s) on F key or trigger
   useEffect(() => {
@@ -64,13 +93,24 @@ export const CameraControls: React.FC = () => {
     camera.position.set(8, 6, 8);
     controlsRef.current.target.set(0, 0, 0);
     controlsRef.current.update();
-  }, [resetCameraTimestamp, camera]);
+    setCameraState({ position: [8, 6, 8], target: [0, 0, 0] });
+  }, [resetCameraTimestamp, camera, setCameraState]);
+
+  const handleControlsEnd = () => {
+    if (!controlsRef.current) return;
+    const t = controlsRef.current.target;
+    setCameraState({
+      position: [camera.position.x, camera.position.y, camera.position.z],
+      target: [t.x, t.y, t.z]
+    });
+  };
 
   return (
     <DreiOrbitControls
       ref={controlsRef}
       makeDefault
       enabled={!isGizmoDragging}
+      onEnd={handleControlsEnd}
       enableDamping
       dampingFactor={0.08}
       minDistance={0.5}
