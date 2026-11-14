@@ -13,7 +13,7 @@ import type { HdriRecord } from '@shared/types/lighting';
 import type { RenderSettings, ToneMappingMode } from '@shared/types/render';
 import { sphericalToCartesian } from '../constants/lightingPresets';
 
-function mapToneMapping(mode: ToneMappingMode): THREE.ToneMapping {
+export function mapToneMapping(mode: ToneMappingMode): THREE.ToneMapping {
   switch (mode) {
     case 'ACESFilmic':
       return THREE.ACESFilmicToneMapping;
@@ -26,17 +26,17 @@ function mapToneMapping(mode: ToneMappingMode): THREE.ToneMapping {
   }
 }
 
-function checkAbort(signal?: AbortSignal): void {
+export function checkAbort(signal?: AbortSignal): void {
   if (signal?.aborted) {
     throw new Error('Render cancelled.');
   }
 }
 
-async function yieldFrame(): Promise<void> {
+export async function yieldFrame(): Promise<void> {
   await new Promise((r) => setTimeout(r, 0));
 }
 
-async function createThumbnailFromDataUrl(imageDataUrl: string, maxWidth = 480): Promise<string> {
+export async function createThumbnailFromDataUrl(imageDataUrl: string, maxWidth = 480): Promise<string> {
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image();
     el.onload = () => resolve(el);

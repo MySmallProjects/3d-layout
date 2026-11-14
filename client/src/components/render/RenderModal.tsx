@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Camera, Crosshair, Download, Image as ImageIcon, XCircle } from 'lucide-react';
 import type { HdriRecord, LightingPresetRecord } from '@shared/types/lighting';
-import type { RenderRecord, ResolutionPreset, ToneMappingMode } from '@shared/types/render';
+import type { RenderRecord, RendererType, ResolutionPreset, ToneMappingMode } from '@shared/types/render';
 import { Modal } from '../common/Modal';
 import { BUILTIN_LIGHTING_PRESETS } from '../../constants/lightingPresets';
 import { useSceneStore } from '../../store/sceneStore';
 import { useLibraryStore } from '../../store/libraryStore';
 import { fetchCustomPresets, fetchHdris } from '../../api/lighting';
 import { createRenderApi } from '../../api/renders';
-import { renderSceneOffscreen } from '../../utils/offscreenRenderer';
+import { executeRenderWithFallback } from '../../utils/pathTracerRenderer';
 
 interface RenderModalProps {
   isOpen: boolean;
@@ -53,6 +53,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
   const [completedRender, setCompletedRender] = useState<RenderRecord | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -60,6 +61,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     if (!isOpen) return;
     setRenderName(`${currentSceneName} Render`);
     setError(null);
+    setFallbackNotice(null);
     setCompletedRender(null);
     fetchCustomPresets().then(setCustomPresets).catch(() => {});
     fetchHdris().then(setHdris).catch(() => {});
@@ -98,6 +100,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
   const handleStartRender = async () => {
     if (rendering) return;
     setError(null);
+    setFallbackNotice(null);
     setCompletedRender(null);
     setRendering(true);
     setProgress(0);
@@ -113,20 +116,37 @@ export const RenderModal: React.FC<RenderModalProps> = ({
       const liveCam = getCam ? getCam() : useSceneStore.getState().cameraState;
 
       const latestHdriList = hdris.length > 0 ? hdris : await fetchHdris().catch(() => []);
-      const settingsSnapshot = { ...renderSettings, lighting };
+      const settingsSnapshot = {
+        ...renderSettings,
+        rendererType: renderSettings.rendererType ?? 'standard',
+        pathTracerSamples: renderSettings.pathTracerSamples ?? 32,
+        pathTracerBounces: renderSettings.pathTracerBounces ?? 5,
+        lighting,
+      };
 
-      const output = await renderSceneOffscreen({
-        objects,
-        background,
-        cameraState: liveCam,
-        settings: settingsSnapshot,
-        hdris: latestHdriList,
-        signal: controller.signal,
-        onProgress: (pct, st) => {
-          setProgress(pct);
-          setStage(st);
+      const output = await executeRenderWithFallback(
+        {
+          objects,
+          background,
+          cameraState: liveCam,
+          settings: settingsSnapshot,
+          hdris: latestHdriList,
+          signal: controller.signal,
+          onProgress: (pct, st) => {
+            setProgress(pct);
+            setStage(st);
+          },
         },
-      });
+        (reason) => {
+          const msg = `Path tracer unavailable (${reason}). Fell back to Fast (standard) renderer.`;
+          setFallbackNotice(msg);
+          showToast(msg, 'info');
+        }
+      );
+
+      const savedSettings = output.usedFallback
+        ? { ...settingsSnapshot, rendererType: 'standard' as const }
+        : settingsSnapshot;
 
       setStage('Saving to gallery...');
       const saved = await createRenderApi({
@@ -135,14 +155,14 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         sceneName: currentSceneName,
         width: output.width,
         height: output.height,
-        settings: settingsSnapshot,
+        settings: savedSettings,
         camera: liveCam,
         imageDataUrl: output.imageDataUrl,
         thumbnailDataUrl: output.thumbnailDataUrl,
       });
 
       setCompletedRender(saved);
-      showToast('Render saved to gallery!', 'success');
+      showToast(output.usedFallback ? 'Rendered with standard fallback and saved!' : 'Render saved to gallery!', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Render failed';
       setError(msg);
@@ -172,8 +192,25 @@ export const RenderModal: React.FC<RenderModalProps> = ({
           </div>
         )}
 
-        {/* Name & Resolution */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        {fallbackNotice && (
+          <div style={{ padding: '8px 10px', borderRadius: '4px', backgroundColor: 'rgba(245,158,11,0.15)', color: '#fcd34d', border: '1px solid rgba(245,158,11,0.35)' }}>
+            {fallbackNotice}
+          </div>
+        )}
+
+        {/* Renderer Mode & Name */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+          <label style={{ color: 'var(--text-muted)' }}>
+            Renderer
+            <select
+              value={renderSettings.rendererType ?? 'standard'}
+              onChange={(e) => setRenderSettings({ rendererType: e.target.value as RendererType })}
+              style={{ ...inputStyle, width: '100%', marginTop: '4px' }}
+            >
+              <option value="standard">Fast (standard)</option>
+              <option value="pathtraced">Path traced</option>
+            </select>
+          </label>
           <label style={{ color: 'var(--text-muted)' }}>
             Render Name
             <input
@@ -226,20 +263,51 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         )}
 
         {/* Quality, FOV, Tone Mapping, Exposure */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-          <label style={{ color: 'var(--text-muted)' }}>
-            AA Samples
-            <select
-              value={renderSettings.samples}
-              onChange={(e) => setRenderSettings({ samples: parseInt(e.target.value, 10) as 1 | 2 | 4 | 8 })}
-              style={{ ...inputStyle, width: '100%', marginTop: '4px' }}
-            >
-              <option value={1}>1x (Fast)</option>
-              <option value={2}>2x (Balanced)</option>
-              <option value={4}>4x (High)</option>
-              <option value={8}>8x (Ultra)</option>
-            </select>
-          </label>
+        {(renderSettings.rendererType ?? 'standard') === 'pathtraced' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', padding: '8px 10px', backgroundColor: 'var(--bg-card)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+            <label style={{ color: 'var(--text-muted)' }}>
+              Path Samples ({renderSettings.pathTracerSamples ?? 32})
+              <input
+                type="range"
+                min={8}
+                max={256}
+                step={8}
+                value={renderSettings.pathTracerSamples ?? 32}
+                onChange={(e) => setRenderSettings({ pathTracerSamples: parseInt(e.target.value, 10) })}
+                style={{ width: '100%', marginTop: '4px' }}
+              />
+            </label>
+            <label style={{ color: 'var(--text-muted)' }}>
+              Max Bounces ({renderSettings.pathTracerBounces ?? 5})
+              <input
+                type="range"
+                min={1}
+                max={16}
+                step={1}
+                value={renderSettings.pathTracerBounces ?? 5}
+                onChange={(e) => setRenderSettings({ pathTracerBounces: parseInt(e.target.value, 10) })}
+                style={{ width: '100%', marginTop: '4px' }}
+              />
+            </label>
+          </div>
+        )}
+
+        <div style={{ display: 'grid', gridTemplateColumns: (renderSettings.rendererType ?? 'standard') === 'pathtraced' ? '1fr 1fr' : '1fr 1fr 1fr', gap: '10px' }}>
+          {(renderSettings.rendererType ?? 'standard') === 'standard' && (
+            <label style={{ color: 'var(--text-muted)' }}>
+              AA Samples
+              <select
+                value={renderSettings.samples}
+                onChange={(e) => setRenderSettings({ samples: parseInt(e.target.value, 10) as 1 | 2 | 4 | 8 })}
+                style={{ ...inputStyle, width: '100%', marginTop: '4px' }}
+              >
+                <option value={1}>1x (Fast)</option>
+                <option value={2}>2x (Balanced)</option>
+                <option value={4}>4x (High)</option>
+                <option value={8}>8x (Ultra)</option>
+              </select>
+            </label>
+          )}
           <label style={{ color: 'var(--text-muted)' }}>
             Tone Mapping
             <select
@@ -372,14 +440,16 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             />
             Transparent PNG Background
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={renderSettings.ssaoEnabled}
-              onChange={(e) => setRenderSettings({ ssaoEnabled: e.target.checked })}
-            />
-            Ambient Occlusion (SSAO)
-          </label>
+          {(renderSettings.rendererType ?? 'standard') === 'standard' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={renderSettings.ssaoEnabled}
+                onChange={(e) => setRenderSettings({ ssaoEnabled: e.target.checked })}
+              />
+              Ambient Occlusion (SSAO)
+            </label>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
             <input
               type="checkbox"

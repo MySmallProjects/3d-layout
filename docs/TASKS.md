@@ -72,9 +72,9 @@ The agent ticks items as completed, and lists any skipped or simplified items un
 - [x] 6a Auto-upload render with metadata
 - [x] 6c Render gallery (view, download, rename, delete, re-open scene, re-render)
 - [x] 6c Sort and filter
-- [ ] 6b Path tracer (stretch) with fallback
+- [x] 6b Path tracer (stretch) with fallback
 - Skipped/simplified:
-  - 6b (Path tracer) deferred until requested, per phase instructions.
+  - None. All Phase 6 (6a, 6b, 6c) features implemented cleanly.
 
 ## Phase 7: Extra features
 - [ ] 7.1 Import normalisation

@@ -222,8 +222,9 @@ export const RendersGalleryPage: React.FC<RendersGalleryPageProps> = ({
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', padding: '10px', backgroundColor: 'var(--bg-card)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
               <div>Scene: <strong style={{ color: 'var(--text-main)' }}>{selected.sceneName}</strong></div>
+              <div>Renderer: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.rendererType === 'pathtraced' ? 'Path traced' : 'Fast (standard)'}</strong></div>
               <div>Resolution: <strong style={{ color: 'var(--text-main)' }}>{selected.width}×{selected.height}</strong></div>
-              <div>Samples: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.samples}x</strong></div>
+              <div>Samples: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.rendererType === 'pathtraced' ? `${selected.settings.pathTracerSamples ?? 32} spp (${selected.settings.pathTracerBounces ?? 5} bounces)` : `${selected.settings.samples}x`}</strong></div>
               <div>FOV: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.fov}°</strong></div>
               <div>Tone Map: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.toneMapping}</strong></div>
               <div>Exposure: <strong style={{ color: 'var(--text-main)' }}>{selected.settings.exposure}</strong></div>

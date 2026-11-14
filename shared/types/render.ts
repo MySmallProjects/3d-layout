@@ -3,8 +3,12 @@ import type { LightingConfig } from './lighting';
 
 export type ResolutionPreset = '1080p' | '4k' | 'square' | 'custom';
 export type ToneMappingMode = 'ACESFilmic' | 'AgX' | 'Reinhard' | 'None';
+export type RendererType = 'standard' | 'pathtraced';
 
 export interface RenderSettings {
+  rendererType?: RendererType;
+  pathTracerSamples?: number;
+  pathTracerBounces?: number;
   resolutionPreset: ResolutionPreset;
   width: number;
   height: number;

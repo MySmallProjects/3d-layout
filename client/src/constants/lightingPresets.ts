@@ -103,6 +103,9 @@ export const BUILTIN_LIGHTING_PRESETS: LightingConfig[] = [
 export const DEFAULT_LIGHTING_CONFIG: LightingConfig = BUILTIN_LIGHTING_PRESETS[0];
 
 export const DEFAULT_RENDER_SETTINGS: RenderSettings = {
+  rendererType: 'standard',
+  pathTracerSamples: 32,
+  pathTracerBounces: 5,
   resolutionPreset: '1080p',
   width: 1920,
   height: 1080,
