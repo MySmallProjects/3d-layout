@@ -4,33 +4,102 @@ import { VersionBadge } from './components/layout/VersionBadge';
 import { HelpModal } from './components/layout/HelpModal';
 import { AdminModal } from './components/layout/AdminModal';
 import { LibraryPanel } from './components/library/LibraryPanel';
+import { Viewport } from './components/viewport/Viewport';
+import { SceneObjectsPanel } from './components/scene/SceneObjectsPanel';
 import { Toast } from './components/common/Toast';
 import { useLibraryStore } from './store/libraryStore';
-import { Box, Layers } from 'lucide-react';
+import { useSceneStore } from './store/sceneStore';
 
 export const App: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const { loadLibrary } = useLibraryStore();
+  const {
+    toggleGrid,
+    triggerFocus,
+    triggerResetCamera,
+    deselectAll,
+    selectedObjectIds,
+    deleteObjects,
+    duplicateObject
+  } = useSceneStore();
 
   useEffect(() => {
     loadLibrary();
   }, [loadLibrary]);
 
-  // Global '?' shortcut for Help
+  // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = (document.activeElement?.tagName || '').toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {
-        return;
-      }
+      const isInputActive =
+        activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+
+      if (isInputActive) return;
+
+      // ? : Help
       if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
         setIsHelpOpen((prev) => !prev);
+        return;
+      }
+
+      // G : Toggle Grid
+      if (e.key === 'g' || e.key === 'G') {
+        if (!e.ctrlKey && !e.metaKey) {
+          toggleGrid();
+          return;
+        }
+      }
+
+      // F : Focus Selected
+      if (e.key === 'f' || e.key === 'F') {
+        if (!e.ctrlKey && !e.metaKey) {
+          triggerFocus();
+          return;
+        }
+      }
+
+      // Home : Reset Camera View
+      if (e.key === 'Home') {
+        triggerResetCamera();
+        return;
+      }
+
+      // Esc : Deselect All
+      if (e.key === 'Escape') {
+        deselectAll();
+        return;
+      }
+
+      // Delete / Backspace : Remove Selected Objects
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedObjectIds.length > 0) {
+          deleteObjects(selectedObjectIds);
+          return;
+        }
+      }
+
+      // Ctrl+D : Duplicate Selected Object
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        if (selectedObjectIds.length > 0) {
+          duplicateObject(selectedObjectIds[0]);
+          return;
+        }
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [
+    toggleGrid,
+    triggerFocus,
+    triggerResetCamera,
+    deselectAll,
+    selectedObjectIds,
+    deleteObjects,
+    duplicateObject
+  ]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw' }}>
@@ -45,94 +114,20 @@ export const App: React.FC = () => {
         {/* Left: Asset Library Panel */}
         <LibraryPanel />
 
-        {/* Center: 3D Viewport placeholder for Phase 2 */}
+        {/* Center: 3D Viewport */}
         <main
           style={{
             flex: 1,
             backgroundColor: 'var(--bg-app)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative'
+            position: 'relative',
+            minWidth: 0
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              color: 'var(--text-muted)',
-              gap: '12px',
-              padding: '24px',
-              textAlign: 'center'
-            }}
-          >
-            <div
-              style={{
-                width: '64px',
-                height: '64px',
-                borderRadius: '16px',
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                border: '1px dashed var(--border-color)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Box size={32} opacity={0.4} />
-            </div>
-            <div>
-              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-main)', marginBottom: '4px' }}>
-                3D Viewport Canvas
-              </div>
-              <div style={{ fontSize: '12px', maxWidth: '320px', lineHeight: '1.4' }}>
-                Asset Library is ready. Drag-and-drop models into the scene canvas will activate in Phase 2.
-              </div>
-            </div>
-          </div>
+          <Viewport />
         </main>
 
-        {/* Right: Scene Objects & Properties Panel placeholder for Phase 2/3 */}
-        <aside
-          style={{
-            width: '260px',
-            backgroundColor: 'var(--bg-panel)',
-            borderLeft: '1px solid var(--border-color)',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
-          <div
-            style={{
-              padding: '10px 14px',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-panel-header)',
-              fontSize: '12px',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Layers size={14} color="var(--accent)" />
-            <span>SCENE OBJECTS</span>
-          </div>
-          <div
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '20px',
-              color: 'var(--text-muted)',
-              fontSize: '12px',
-              textAlign: 'center'
-            }}
-          >
-            Scene objects and properties panel (Phase 2 & 3)
-          </div>
-        </aside>
+        {/* Right: Scene Objects List Panel */}
+        <SceneObjectsPanel />
       </div>
 
       {/* Version badge (bottom right) */}

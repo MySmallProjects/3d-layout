@@ -113,6 +113,30 @@ async function runTests() {
 
   // Cleanup folders
   deleteFolder(rootFolder.id, true);
+
+  // 9. Phase 2: Backgrounds Table & Operations
+  console.log('--- Running Phase 2 Background Tests ---');
+  const db = (await import('../src/db/connection')).getDatabase();
+  const bgId = 'test-bg-123';
+  const bgPath = 'backgrounds/test-bg-123.jpg';
+  const fullBgPath = path.join(DATA_DIR, bgPath);
+  fs.writeFileSync(fullBgPath, 'fake-jpeg-data');
+
+  db.prepare(`
+    INSERT INTO backgrounds (id, file_name, file_path, size_bytes, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(bgId, 'Studio Background.jpg', bgPath, 14, new Date().toISOString());
+
+  const bgRow = db.prepare('SELECT * FROM backgrounds WHERE id = ?').get(bgId) as any;
+  assert(bgRow, 'Background row must exist');
+  assert.strictEqual(bgRow.file_name, 'Studio Background.jpg');
+
+  // Delete background
+  if (fs.existsSync(fullBgPath)) fs.unlinkSync(fullBgPath);
+  db.prepare('DELETE FROM backgrounds WHERE id = ?').run(bgId);
+  assert.strictEqual(db.prepare('SELECT * FROM backgrounds WHERE id = ?').get(bgId), undefined);
+  console.log('✓ Background database storage and cleanup verified');
+
   console.log('✓ All integration tests passed successfully!');
 }
 

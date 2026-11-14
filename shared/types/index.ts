@@ -1,3 +1,5 @@
 export * from './version';
 export * from './model';
 export * from './api';
+export * from './scene';
+export * from './background';

@@ -17,18 +17,19 @@ The agent ticks items as completed, and lists any skipped or simplified items un
   - Browser verification subagent could not connect to Chrome due to absent Chrome DevTools port in this headless sandbox; comprehensive integration and HTTP/API end-to-end tests were performed to verify the full workflow.
 
 ## Phase 2: Viewport and scene basics
-- [ ] Fast edit-mode viewport
-- [ ] Drag from library onto floor point
-- [ ] Multiple independent instances
-- [ ] Selection, multi-select, deselect
-- [ ] Orbit/pan/zoom, focus (F), reset view
-- [ ] Grid toggle (G)
-- [ ] Background image / colour / clear (stored on server)
-- [ ] Hover and selected outlines
-- [ ] Scene objects list with thumbnails, visibility, lock, rename, delete, duplicate
-- [ ] Zustand scene store (serialisable)
-- [ ] Loading indicators and load-failure placeholder
+- [x] Fast edit-mode viewport
+- [x] Drag from library onto floor point
+- [x] Multiple independent instances
+- [x] Selection, multi-select, deselect
+- [x] Orbit/pan/zoom, focus (F), reset view
+- [x] Grid toggle (G)
+- [x] Background image / colour / clear (stored on server)
+- [x] Hover and selected outlines
+- [x] Scene objects list with thumbnails, visibility, lock, rename, delete, duplicate
+- [x] Zustand scene store (serialisable)
+- [x] Loading indicators and load-failure placeholder
 - Skipped/simplified:
+  - Bounding box outline helper is used for edit-mode hover and selection outlines to avoid expensive full-screen post-processing passes during real-time multi-model editing.
 
 ## Phase 3: Manipulation, properties, undo/redo, help
 - [ ] Transform gizmo (W/E/R)

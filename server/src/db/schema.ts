@@ -25,5 +25,13 @@ export function initializeDatabase(): void {
 
     CREATE INDEX IF NOT EXISTS idx_models_folder_id ON models(folder_id);
     CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
+
+    CREATE TABLE IF NOT EXISTS backgrounds (
+      id TEXT PRIMARY KEY,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
 }

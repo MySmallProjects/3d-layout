@@ -13,6 +13,8 @@ data/models/*
 !data/models/.gitkeep
 data/thumbnails/*
 !data/thumbnails/.gitkeep
+data/backgrounds/*
+!data/backgrounds/.gitkeep
 data/*.sqlite*
 data/*.db*
 

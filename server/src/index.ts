@@ -7,6 +7,7 @@ import { initializeDatabase } from './db/schema';
 import { versionRouter } from './routes/version';
 import { modelsRouter } from './routes/models';
 import { foldersRouter } from './routes/folders';
+import { backgroundsRouter } from './routes/backgrounds';
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/version', versionRouter);
 app.use('/api/models', modelsRouter);
 app.use('/api/folders', foldersRouter);
+app.use('/api/backgrounds', backgroundsRouter);
 
 // Root healthcheck
 app.get('/api/health', (_req, res) => {
