@@ -29,6 +29,13 @@ export interface CameraState {
   target: [number, number, number];
 }
 
+export interface CameraBookmark {
+  id: string;
+  name: string;
+  camera: CameraState;
+  createdAt: string;
+}
+
 export interface SceneData {
   schemaVersion: number;
   objects: SceneObject[];
@@ -38,7 +45,7 @@ export interface SceneData {
   lighting: Record<string, unknown>;
   renderSettings: Record<string, unknown>;
   groundPlane?: Record<string, unknown>;
-  cameraBookmarks?: unknown[];
+  cameraBookmarks?: CameraBookmark[];
 }
 
 export interface SceneRecord {

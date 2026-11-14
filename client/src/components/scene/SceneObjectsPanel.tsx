@@ -5,6 +5,7 @@ import { useLibraryStore } from '../../store/libraryStore';
 import { SceneObject } from '../../types';
 import { SceneObjectRow } from './SceneObjectRow';
 import { PropertiesPanel } from './PropertiesPanel';
+import { CameraBookmarksPanel } from './CameraBookmarksPanel';
 import { Modal } from '../common/Modal';
 
 export const SceneObjectsPanel: React.FC = () => {
@@ -121,6 +122,9 @@ export const SceneObjectsPanel: React.FC = () => {
           ))
         )}
       </div>
+
+      {/* Camera Bookmarks Panel */}
+      <CameraBookmarksPanel />
 
       {/* Properties Panel for Selected Object(s) */}
       <PropertiesPanel />

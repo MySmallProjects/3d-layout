@@ -1,4 +1,4 @@
-import type { SceneData, SceneObject } from '@shared/types/scene';
+import type { CameraBookmark, SceneData, SceneObject } from '@shared/types/scene';
 import { useSceneStore } from '../store/sceneStore';
 
 export function captureLiveSceneData(): SceneData {
@@ -117,6 +117,22 @@ export function validateAndNormalizeSceneJson(
     unknown
   >;
 
+  const rawBookmarks = Array.isArray(obj.cameraBookmarks) ? obj.cameraBookmarks : [];
+  const cameraBookmarks: CameraBookmark[] = rawBookmarks
+    .filter((b): b is Record<string, unknown> => Boolean(b && typeof b === 'object'))
+    .map((b, idx) => {
+      const cam = (b.camera && typeof b.camera === 'object' ? b.camera : {}) as Record<string, unknown>;
+      return {
+        id: typeof b.id === 'string' && b.id.trim() ? b.id : `cam_imp_${Date.now()}_${idx}`,
+        name: typeof b.name === 'string' && b.name.trim() ? b.name : `Camera ${idx + 1}`,
+        camera: {
+          position: toVec3(cam.position, [8, 6, 8]),
+          target: toVec3(cam.target, [0, 0, 0]),
+        },
+        createdAt: typeof b.createdAt === 'string' ? b.createdAt : new Date().toISOString(),
+      };
+    });
+
   const data: SceneData = {
     schemaVersion: typeof obj.schemaVersion === 'number' ? obj.schemaVersion : 1,
     objects,
@@ -138,7 +154,7 @@ export function validateAndNormalizeSceneJson(
       obj.groundPlane && typeof obj.groundPlane === 'object'
         ? (obj.groundPlane as Record<string, unknown>)
         : {},
-    cameraBookmarks: Array.isArray(obj.cameraBookmarks) ? obj.cameraBookmarks : [],
+    cameraBookmarks,
   };
 
   return { data, warnings };

@@ -161,6 +161,14 @@ async function runTests() {
     camera: { position: [5, 5, 5] as [number, number, number], target: [0, 0, 0] as [number, number, number] },
     lighting: {},
     renderSettings: {},
+    cameraBookmarks: [
+      {
+        id: 'cam_test_1',
+        name: 'Front Hero',
+        camera: { position: [3, 2, 6] as [number, number, number], target: [0, 0.5, 0] as [number, number, number] },
+        createdAt: '2026-11-14T00:00:00.000Z',
+      },
+    ],
   };
 
   const createdScene = createScene('Test Room', sampleSceneData);
@@ -320,6 +328,11 @@ async function runTests() {
   legacyDb.close();
   console.log('✓ Phase 7.1 settings, per-model normalisation, backup/restore & v1->v2 migration verified');
   assert(getScene(bScene.id)?.name === 'Backup Scene', 'Scene restored identically');
+  assert.strictEqual(
+    getScene(bScene.id)?.data.cameraBookmarks?.[0]?.name,
+    'Front Hero',
+    'Camera bookmarks restored identically in scene backup'
+  );
   assert(
     fs.readFileSync(path.join(DATA_DIR, bModelPath), 'utf-8') === 'glTF-backup-payload',
     'Model file bytes restored identically'

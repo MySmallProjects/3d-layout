@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { SceneObject, BackgroundConfig } from '../types';
-import type { AppliedNormalisation, CameraState, SceneData } from '@shared/types/scene';
+import type { AppliedNormalisation, CameraBookmark, CameraState, SceneData } from '@shared/types/scene';
 import type { LightingConfig } from '@shared/types/lighting';
 import type { RenderSettings } from '@shared/types/render';
 import { DEFAULT_LIGHTING_CONFIG, DEFAULT_RENDER_SETTINGS } from '../constants/lightingPresets';
@@ -38,6 +38,9 @@ interface SceneState {
   // Lighting & Render Settings (Phase 6)
   lighting: LightingConfig;
   renderSettings: RenderSettings;
+
+  // Camera Bookmarks (Phase 7.3)
+  cameraBookmarks: CameraBookmark[];
 
   // Transform & Snapping
   transformMode: TransformMode;
@@ -104,6 +107,33 @@ interface SceneState {
   // Lighting & Render Settings (Phase 6)
   setLighting: (lighting: LightingConfig) => void;
   setRenderSettings: (patch: Partial<RenderSettings>) => void;
+
+  // Camera Bookmarks (Phase 7.3)
+  addCameraBookmark: (name?: string, cameraOverride?: CameraState) => CameraBookmark;
+  jumpToCameraBookmark: (id: string) => void;
+  renameCameraBookmark: (id: string, name: string) => void;
+  updateCameraBookmarkFromCurrent: (id: string, cameraOverride?: CameraState) => void;
+  deleteCameraBookmark: (id: string) => void;
+}
+
+function getLiveCameraState(fallback: CameraState): CameraState {
+  const getter = (window as unknown as { __getCameraState?: () => CameraState }).__getCameraState;
+  const cam = getter ? getter() : fallback;
+  return {
+    position: [...cam.position],
+    target: [...cam.target]
+  };
+}
+
+function cloneBookmarks(bookmarks: CameraBookmark[] | undefined): CameraBookmark[] {
+  if (!Array.isArray(bookmarks)) return [];
+  return bookmarks.map((b) => ({
+    ...b,
+    camera: {
+      position: [...b.camera.position] as [number, number, number],
+      target: [...b.camera.target] as [number, number, number]
+    }
+  }));
 }
 
 function cloneObjects(objs: SceneObject[]): SceneObject[] {
@@ -147,6 +177,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
   lighting: DEFAULT_LIGHTING_CONFIG,
   renderSettings: DEFAULT_RENDER_SETTINGS,
+  cameraBookmarks: [],
 
   transformMode: 'translate',
   isGizmoDragging: false,
@@ -541,6 +572,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       cameraState: data.camera || { position: [8, 6, 8], target: [0, 0, 0] },
       lighting: loadedLighting,
       renderSettings: loadedRender,
+      cameraBookmarks: cloneBookmarks(data.cameraBookmarks),
       pendingCameraRestoreTimestamp: Date.now(),
       selectedObjectIds: [],
       hoveredObjectId: null,
@@ -563,6 +595,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       cameraState: { position: [8, 6, 8], target: [0, 0, 0] },
       lighting: DEFAULT_LIGHTING_CONFIG,
       renderSettings: DEFAULT_RENDER_SETTINGS,
+      cameraBookmarks: [],
       pendingCameraRestoreTimestamp: Date.now(),
       past: [],
       future: [],
@@ -585,7 +618,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   },
 
   serializeScene: (cameraOverride) => {
-    const { objects, gridVisible, background, cameraState, lighting, renderSettings } = get();
+    const { objects, gridVisible, background, cameraState, lighting, renderSettings, cameraBookmarks } = get();
     return {
       schemaVersion: 1,
       objects: cloneObjects(objects),
@@ -595,7 +628,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       lighting: lighting as unknown as Record<string, unknown>,
       renderSettings: renderSettings as unknown as Record<string, unknown>,
       groundPlane: {},
-      cameraBookmarks: []
+      cameraBookmarks: cloneBookmarks(cameraBookmarks)
     };
   },
 
@@ -610,6 +643,77 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   setRenderSettings: (patch) => {
     set((state) => ({
       renderSettings: { ...state.renderSettings, ...patch },
+      isDirty: true
+    }));
+  },
+
+  addCameraBookmark: (name, cameraOverride) => {
+    const { cameraBookmarks, cameraState } = get();
+    const liveCam = cameraOverride ?? getLiveCameraState(cameraState);
+    const trimmed = name?.trim();
+    const bookmark: CameraBookmark = {
+      id: `cam_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: trimmed || `Camera ${cameraBookmarks.length + 1}`,
+      camera: {
+        position: [...liveCam.position],
+        target: [...liveCam.target]
+      },
+      createdAt: new Date().toISOString()
+    };
+    set({
+      cameraBookmarks: [...cameraBookmarks, bookmark],
+      cameraState: liveCam,
+      isDirty: true
+    });
+    return bookmark;
+  },
+
+  jumpToCameraBookmark: (id) => {
+    const bookmark = get().cameraBookmarks.find((b) => b.id === id);
+    if (!bookmark) return;
+    set((state) => ({
+      cameraState: {
+        position: [...bookmark.camera.position],
+        target: [...bookmark.camera.target]
+      },
+      pendingCameraRestoreTimestamp: Math.max(Date.now(), state.pendingCameraRestoreTimestamp + 1)
+    }));
+  },
+
+  renameCameraBookmark: (id, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    set((state) => ({
+      cameraBookmarks: state.cameraBookmarks.map((b) =>
+        b.id === id ? { ...b, name: trimmed } : b
+      ),
+      isDirty: true
+    }));
+  },
+
+  updateCameraBookmarkFromCurrent: (id, cameraOverride) => {
+    const { cameraState } = get();
+    const liveCam = cameraOverride ?? getLiveCameraState(cameraState);
+    set((state) => ({
+      cameraBookmarks: state.cameraBookmarks.map((b) =>
+        b.id === id
+          ? {
+              ...b,
+              camera: {
+                position: [...liveCam.position],
+                target: [...liveCam.target]
+              }
+            }
+          : b
+      ),
+      cameraState: liveCam,
+      isDirty: true
+    }));
+  },
+
+  deleteCameraBookmark: (id) => {
+    set((state) => ({
+      cameraBookmarks: state.cameraBookmarks.filter((b) => b.id !== id),
       isDirty: true
     }));
   }
