@@ -4,3 +4,5 @@ export * from './api';
 export * from './scene';
 export * from './background';
 export * from './admin';
+export * from './lighting';
+export * from './render';

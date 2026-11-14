@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { SceneDraft } from '@shared/types/scene';
+import type { RenderRecord } from '@shared/types/render';
 import { TopToolbar } from './components/layout/TopToolbar';
 import { VersionBadge } from './components/layout/VersionBadge';
 import { HelpModal } from './components/layout/HelpModal';
 import { AboutModal } from './components/layout/AboutModal';
 import { AdminPage } from './components/admin/AdminPage';
+import { LightingModal } from './components/lighting/LightingModal';
+import { RenderModal } from './components/render/RenderModal';
+import { RendersGalleryPage } from './components/render/RendersGalleryPage';
 import { getVersionInfo } from './utils/version';
 import { LibraryPanel } from './components/library/LibraryPanel';
 import { Viewport } from './components/viewport/Viewport';
@@ -34,9 +38,13 @@ import {
 export const App: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isAdminRoute, setIsAdminRoute] = useState(() => window.location.pathname === '/admin');
+  const [isRendersRoute, setIsRendersRoute] = useState(() => window.location.pathname === '/renders');
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isScenesOpen, setIsScenesOpen] = useState(false);
   const [isSaveAsOpen, setIsSaveAsOpen] = useState(false);
+  const [isLightingOpen, setIsLightingOpen] = useState(false);
+  const [isRenderOpen, setIsRenderOpen] = useState(false);
+  const [autoStartRender, setAutoStartRender] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<SceneDraft | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,7 +58,10 @@ export const App: React.FC = () => {
   }, [loadLibrary]);
 
   useEffect(() => {
-    const onPopState = () => setIsAdminRoute(window.location.pathname === '/admin');
+    const onPopState = () => {
+      setIsAdminRoute(window.location.pathname === '/admin');
+      setIsRendersRoute(window.location.pathname === '/renders');
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -59,7 +70,16 @@ export const App: React.FC = () => {
     if (window.location.pathname !== '/admin') {
       window.history.pushState({}, '', '/admin');
     }
+    setIsRendersRoute(false);
     setIsAdminRoute(true);
+  }, []);
+
+  const navigateToRenders = useCallback(() => {
+    if (window.location.pathname !== '/renders') {
+      window.history.pushState({}, '', '/renders');
+    }
+    setIsAdminRoute(false);
+    setIsRendersRoute(true);
   }, []);
 
   const navigateToEditor = useCallback(() => {
@@ -67,6 +87,7 @@ export const App: React.FC = () => {
       window.history.pushState({}, '', '/');
     }
     setIsAdminRoute(false);
+    setIsRendersRoute(false);
     loadLibrary();
   }, [loadLibrary]);
 
@@ -287,8 +308,45 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleSaveScene]);
 
+  const handleOpenSceneFromRender = useCallback(
+    async (render: RenderRecord, reRender: boolean) => {
+      if (render.sceneId) {
+        try {
+          const record = await fetchScene(render.sceneId);
+          useSceneStore
+            .getState()
+            .loadSceneData(
+              { ...record.data, camera: render.camera },
+              { id: record.id, name: record.name },
+              false
+            );
+        } catch (err) {
+          showToast(err instanceof Error ? err.message : 'Original scene could not be loaded', 'error');
+        }
+      }
+      const st = useSceneStore.getState();
+      st.setLighting(render.settings.lighting);
+      st.setRenderSettings(render.settings);
+      navigateToEditor();
+      if (reRender) {
+        setAutoStartRender(true);
+        setIsRenderOpen(true);
+      }
+    },
+    [navigateToEditor, showToast]
+  );
+
   if (isAdminRoute) {
     return <AdminPage onBackToEditor={navigateToEditor} />;
+  }
+
+  if (isRendersRoute) {
+    return (
+      <RendersGalleryPage
+        onBackToEditor={navigateToEditor}
+        onOpenSceneFromRender={handleOpenSceneFromRender}
+      />
+    );
   }
 
   return (
@@ -313,6 +371,9 @@ export const App: React.FC = () => {
         onSaveSceneAs={() => setIsSaveAsOpen(true)}
         onExportScene={handleExportScene}
         onImportScene={() => importInputRef.current?.click()}
+        onOpenLighting={() => setIsLightingOpen(true)}
+        onOpenRender={() => { setAutoStartRender(false); setIsRenderOpen(true); }}
+        onOpenGallery={navigateToRenders}
       />
 
       {/* Main Workspace */}
@@ -349,6 +410,13 @@ export const App: React.FC = () => {
         buildDate={buildDateFormatted}
       />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <LightingModal isOpen={isLightingOpen} onClose={() => setIsLightingOpen(false)} />
+      <RenderModal
+        isOpen={isRenderOpen}
+        onClose={() => { setIsRenderOpen(false); setAutoStartRender(false); }}
+        onOpenGallery={navigateToRenders}
+        autoStart={autoStartRender}
+      />
       <ScenesModal
         isOpen={isScenesOpen}
         onClose={() => setIsScenesOpen(false)}

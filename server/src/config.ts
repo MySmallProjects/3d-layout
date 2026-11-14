@@ -33,6 +33,7 @@ export const DATA_DIR = process.env.DATA_DIR
 export const MODELS_DIR = path.join(DATA_DIR, 'models');
 export const THUMBNAILS_DIR = path.join(DATA_DIR, 'thumbnails');
 export const SCENE_THUMBNAILS_DIR = path.join(THUMBNAILS_DIR, 'scenes');
+export const RENDER_THUMBNAILS_DIR = path.join(THUMBNAILS_DIR, 'renders');
 export const BACKGROUNDS_DIR = path.join(DATA_DIR, 'backgrounds');
 export const HDRIS_DIR = path.join(DATA_DIR, 'hdris');
 export const RENDERS_DIR = path.join(DATA_DIR, 'renders');
@@ -54,6 +55,7 @@ export function ensureDirectories(): void {
     MODELS_DIR,
     THUMBNAILS_DIR,
     SCENE_THUMBNAILS_DIR,
+    RENDER_THUMBNAILS_DIR,
     BACKGROUNDS_DIR,
     HDRIS_DIR,
     RENDERS_DIR,

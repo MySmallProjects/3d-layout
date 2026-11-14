@@ -81,6 +81,7 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, o
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          flexShrink: 0,
           cursor: 'grab',
           transition: 'all 0.15s ease',
           userSelect: 'none'
@@ -97,7 +98,8 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, o
         {/* Thumbnail preview container */}
         <div
           style={{
-            height: '96px',
+            height: '112px',
+            flexShrink: 0,
             backgroundColor: 'var(--bg-input)',
             position: 'relative',
             display: 'flex',

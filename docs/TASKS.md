@@ -66,14 +66,15 @@ The agent ticks items as completed, and lists any skipped or simplified items un
   - None. All Phase 5 features implemented cleanly.
 
 ## Phase 6: Lighting, rendering, gallery
-- [ ] 6a Lighting presets (built-in, editable, custom, HDRI upload)
-- [ ] 6a Render settings dialog
-- [ ] 6a Standard high-quality renderer with progress/cancel
-- [ ] 6a Auto-upload render with metadata
-- [ ] 6c Render gallery (view, download, rename, delete, re-open scene, re-render)
-- [ ] 6c Sort and filter
+- [x] 6a Lighting presets (built-in, editable, custom, HDRI upload)
+- [x] 6a Render settings dialog
+- [x] 6a Standard high-quality renderer with progress/cancel
+- [x] 6a Auto-upload render with metadata
+- [x] 6c Render gallery (view, download, rename, delete, re-open scene, re-render)
+- [x] 6c Sort and filter
 - [ ] 6b Path tracer (stretch) with fallback
 - Skipped/simplified:
+  - 6b (Path tracer) deferred until requested, per phase instructions.
 
 ## Phase 7: Extra features
 - [ ] 7.1 Import normalisation

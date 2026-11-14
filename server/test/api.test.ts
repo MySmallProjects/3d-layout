@@ -216,6 +216,52 @@ async function runTests() {
   saveThumbnail(bModel.id, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
   const bScene = createScene('Backup Scene', sampleSceneData, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=');
 
+  // Also seed Phase 6 lighting preset, HDRI, and render to verify backups include them
+  const { createCustomPreset, createHdri, listCustomPresets, listHdris, deleteCustomPreset, deleteHdri } = await import('../src/services/lightingService');
+  const { createRender, listRenders, renameRender, deleteRender } = await import('../src/services/renderService');
+  const bPreset = createCustomPreset('Warm Test Preset', {
+    presetId: 'temp',
+    presetName: 'Warm Test Preset',
+    ambientIntensity: 0.5,
+    ambientColor: '#ffffff',
+    keyLight: { intensity: 2, color: '#fff', azimuthDeg: 45, elevationDeg: 45, castShadow: true },
+    fillLight: { intensity: 1, color: '#fff', azimuthDeg: -45, elevationDeg: 30 },
+    rimLight: { intensity: 1, color: '#fff', azimuthDeg: 180, elevationDeg: 40 },
+    hdriId: null,
+    hdriAsBackground: false,
+    hdriIntensity: 1,
+  });
+  const bHdriTemp = path.join(os.tmpdir(), `test-env-${Date.now()}.hdr`);
+  fs.writeFileSync(bHdriTemp, '#?RADIANCE\n');
+  const bHdri = createHdri('studio.hdr', bHdriTemp, 11);
+  const bRender = createRender({
+    name: 'Test Render 1',
+    sceneId: bScene.id,
+    sceneName: bScene.name,
+    width: 1920,
+    height: 1080,
+    settings: {
+      resolutionPreset: '1080p',
+      width: 1920,
+      height: 1080,
+      samples: 2,
+      fov: 45,
+      dofEnabled: false,
+      dofAperture: 0.002,
+      dofFocusDistance: 8,
+      transparentBg: false,
+      exposure: 1,
+      toneMapping: 'ACESFilmic',
+      ssaoEnabled: true,
+      groundPlaneEnabled: true,
+      groundShadowOnly: true,
+      groundColor: '#22252e',
+      lighting: bPreset.config,
+    },
+    camera: sampleSceneData.camera,
+    imageDataUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+  });
+
   const overviewBefore = getAdminOverview();
   assert(overviewBefore.counts.models >= 1);
   assert(overviewBefore.counts.scenes >= 1);
@@ -280,10 +326,20 @@ async function runTests() {
   assert(getModel(bModel.id)?.name === 'Backup Chair', 'Existing data untouched after rejected zips');
 
   // Cleanup test data
+  const renamedRender = renameRender(bRender.id, 'Renamed Render');
+  assert.strictEqual(renamedRender.name, 'Renamed Render');
+  assert(listCustomPresets().some((p) => p.id === bPreset.id), 'Lighting preset restored in backup');
+  assert(listHdris().some((h) => h.id === bHdri.id), 'HDRI restored in backup');
+  assert(listRenders('desc', bScene.id).some((r) => r.id === bRender.id), 'Render restored in backup');
+
+  deleteRender(bRender.id);
+  deleteHdri(bHdri.id);
+  deleteCustomPreset(bPreset.id);
   deleteScene(bScene.id);
   deleteModel(bModel.id);
   deleteFolder(bFolder.id, true);
   console.log('✓ Malformed and path-traversal zip rejection verified');
+  console.log('✓ Phase 6a/6c lighting presets, HDRIs, renders, and backup inclusion verified');
 
   // Clean up isolated temp DATA_DIR if running in tmpdir
   if (DATA_DIR.startsWith(os.tmpdir())) {

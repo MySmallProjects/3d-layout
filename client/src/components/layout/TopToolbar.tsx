@@ -19,7 +19,9 @@ import {
   Save,
   FileDown,
   FileUp,
-  ChevronDown
+  ChevronDown,
+  Sun,
+  Images
 } from 'lucide-react';
 import { useSceneStore } from '../../store/sceneStore';
 import { BackgroundModal } from '../scene/BackgroundModal';
@@ -34,6 +36,9 @@ interface TopToolbarProps {
   onSaveSceneAs: () => void;
   onExportScene: () => void;
   onImportScene: () => void;
+  onOpenLighting: () => void;
+  onOpenRender: () => void;
+  onOpenGallery: () => void;
 }
 
 export const TopToolbar: React.FC<TopToolbarProps> = ({
@@ -46,6 +51,9 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
   onSaveSceneAs,
   onExportScene,
   onImportScene,
+  onOpenLighting,
+  onOpenRender,
+  onOpenGallery,
 }) => {
   const {
     gridVisible,
@@ -532,23 +540,60 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
-            disabled
+            onClick={onOpenLighting}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
+              gap: '5px',
               backgroundColor: 'var(--bg-card)',
-              color: 'var(--text-muted)',
-              opacity: 0.5,
+              color: 'var(--text-main)',
               border: '1px solid var(--border-color)',
               padding: '4px 10px',
               borderRadius: '4px',
               fontSize: '12px'
             }}
-            title="Render scene (Phase 6)"
+            title="Lighting Presets & HDRI"
+          >
+            <Sun size={14} />
+            Lighting
+          </button>
+
+          <button
+            onClick={onOpenRender}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              backgroundColor: 'var(--accent)',
+              color: '#ffffff',
+              padding: '4px 12px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: 500
+            }}
+            title="High-Quality Render"
           >
             <Camera size={14} />
             Render
+          </button>
+
+          <button
+            onClick={onOpenGallery}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              backgroundColor: 'var(--bg-card)',
+              color: 'var(--text-muted)',
+              border: '1px solid var(--border-color)',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              fontSize: '12px'
+            }}
+            title="Render Gallery"
+          >
+            <Images size={14} />
+            Gallery
           </button>
 
           <button

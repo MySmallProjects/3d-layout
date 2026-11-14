@@ -88,10 +88,12 @@ export const ModelGrid: React.FC = () => {
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
           padding: '10px',
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+          gridAutoRows: 'max-content',
           gap: '10px',
           alignContent: 'start'
         }}

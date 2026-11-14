@@ -53,6 +53,35 @@ export function initializeDatabase(): void {
       data TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS lighting_presets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      config TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS hdris (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS renders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      scene_id TEXT,
+      scene_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      thumbnail_path TEXT NOT NULL,
+      width INTEGER NOT NULL,
+      height INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      settings TEXT NOT NULL,
+      camera TEXT NOT NULL
+    );
   `);
 }
 
@@ -85,6 +114,35 @@ export function migrateDatabase(db: Database.Database, fromVersion: number): voi
       scene_name TEXT NOT NULL,
       data TEXT NOT NULL,
       updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS lighting_presets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      config TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS hdris (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS renders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      scene_id TEXT,
+      scene_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      thumbnail_path TEXT NOT NULL,
+      width INTEGER NOT NULL,
+      height INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      settings TEXT NOT NULL,
+      camera TEXT NOT NULL
     );
   `);
 }

@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { SceneObject, BackgroundConfig } from '../types';
 import type { CameraState, SceneData } from '@shared/types/scene';
+import type { LightingConfig } from '@shared/types/lighting';
+import type { RenderSettings } from '@shared/types/render';
+import { DEFAULT_LIGHTING_CONFIG, DEFAULT_RENDER_SETTINGS } from '../constants/lightingPresets';
 
 export type TransformMode = 'translate' | 'rotate' | 'scale';
 
@@ -31,6 +34,10 @@ interface SceneState {
   isDirty: boolean;
   cameraState: CameraState;
   pendingCameraRestoreTimestamp: number;
+
+  // Lighting & Render Settings (Phase 6)
+  lighting: LightingConfig;
+  renderSettings: RenderSettings;
 
   // Transform & Snapping
   transformMode: TransformMode;
@@ -88,6 +95,10 @@ interface SceneState {
   setSceneMeta: (meta: { id?: string | null; name?: string }) => void;
   markClean: () => void;
   serializeScene: (cameraOverride?: CameraState) => SceneData;
+
+  // Lighting & Render Settings (Phase 6)
+  setLighting: (lighting: LightingConfig) => void;
+  setRenderSettings: (patch: Partial<RenderSettings>) => void;
 }
 
 function cloneObjects(objs: SceneObject[]): SceneObject[] {
@@ -122,6 +133,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   isDirty: false,
   cameraState: { position: [8, 6, 8], target: [0, 0, 0] },
   pendingCameraRestoreTimestamp: 0,
+
+  lighting: DEFAULT_LIGHTING_CONFIG,
+  renderSettings: DEFAULT_RENDER_SETTINGS,
 
   transformMode: 'translate',
   isGizmoDragging: false,
@@ -494,11 +508,22 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   },
 
   loadSceneData: (data, meta, isDirty = false) => {
+    const loadedLighting =
+      data.lighting && typeof (data.lighting as unknown as LightingConfig).presetId === 'string'
+        ? (data.lighting as unknown as LightingConfig)
+        : DEFAULT_LIGHTING_CONFIG;
+    const loadedRender =
+      data.renderSettings && typeof (data.renderSettings as unknown as RenderSettings).width === 'number'
+        ? { ...(data.renderSettings as unknown as RenderSettings), lighting: loadedLighting }
+        : { ...DEFAULT_RENDER_SETTINGS, lighting: loadedLighting };
+
     set({
       objects: cloneObjects(data.objects || []),
       gridVisible: data.gridVisible ?? true,
       background: data.background || { type: 'color', color: '#1a1c23' },
       cameraState: data.camera || { position: [8, 6, 8], target: [0, 0, 0] },
+      lighting: loadedLighting,
+      renderSettings: loadedRender,
       pendingCameraRestoreTimestamp: Date.now(),
       selectedObjectIds: [],
       hoveredObjectId: null,
@@ -519,6 +544,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       gridVisible: true,
       background: { type: 'color', color: '#1a1c23' },
       cameraState: { position: [8, 6, 8], target: [0, 0, 0] },
+      lighting: DEFAULT_LIGHTING_CONFIG,
+      renderSettings: DEFAULT_RENDER_SETTINGS,
       pendingCameraRestoreTimestamp: Date.now(),
       past: [],
       future: [],
@@ -541,17 +568,32 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   },
 
   serializeScene: (cameraOverride) => {
-    const { objects, gridVisible, background, cameraState } = get();
+    const { objects, gridVisible, background, cameraState, lighting, renderSettings } = get();
     return {
       schemaVersion: 1,
       objects: cloneObjects(objects),
       gridVisible,
       background,
       camera: cameraOverride ?? cameraState,
-      lighting: {},
-      renderSettings: {},
+      lighting: lighting as unknown as Record<string, unknown>,
+      renderSettings: renderSettings as unknown as Record<string, unknown>,
       groundPlane: {},
       cameraBookmarks: []
     };
+  },
+
+  setLighting: (lighting) => {
+    set((state) => ({
+      lighting,
+      renderSettings: { ...state.renderSettings, lighting },
+      isDirty: true
+    }));
+  },
+
+  setRenderSettings: (patch) => {
+    set((state) => ({
+      renderSettings: { ...state.renderSettings, ...patch },
+      isDirty: true
+    }));
   }
 }));

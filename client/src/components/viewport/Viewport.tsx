@@ -9,6 +9,7 @@ import { BackgroundRenderer } from './BackgroundRenderer';
 import { SceneObjectRenderer } from './SceneObjectRenderer';
 import { TransformGizmo } from './TransformGizmo';
 import { ArrowKeyController } from './useArrowKeyMovement';
+import { LightingRig } from './LightingRig';
 
 const SnapToFloorController: React.FC = () => {
   const { scene } = useThree();
@@ -136,10 +137,8 @@ export const Viewport: React.FC = () => {
         }}
         onPointerMissed={() => deselectAll()}
       >
-        {/* Fast edit-mode lighting */}
-        <ambientLight intensity={1.2} />
-        <directionalLight position={[10, 15, 10]} intensity={1.5} />
-        <directionalLight position={[-10, 10, -10]} intensity={0.5} />
+        {/* Fast edit-mode lighting preview */}
+        <LightingRig />
 
         {/* Scene Environment / Background */}
         <BackgroundRenderer />
