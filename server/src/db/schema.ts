@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { getDatabase } from './connection';
 
-export const CURRENT_DB_SCHEMA_VERSION = 2;
+export const CURRENT_DB_SCHEMA_VERSION = 3;
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string): void {
   const cols = db.prepare(`PRAGMA table_info("${table}")`).all() as { name: string }[];
@@ -31,6 +31,7 @@ export function initializeDatabase(): void {
       size_bytes INTEGER NOT NULL,
       created_at TEXT NOT NULL,
       normalisation TEXT,
+      optimisation TEXT,
       FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL
     );
 
@@ -93,6 +94,7 @@ export function initializeDatabase(): void {
   `);
 
   ensureColumn(db, 'models', 'normalisation', 'TEXT');
+  ensureColumn(db, 'models', 'optimisation', 'TEXT');
 }
 
 /**
@@ -102,6 +104,7 @@ export function migrateDatabase(db: Database.Database, fromVersion: number): voi
   if (fromVersion >= CURRENT_DB_SCHEMA_VERSION) return;
 
   ensureColumn(db, 'models', 'normalisation', 'TEXT');
+  ensureColumn(db, 'models', 'optimisation', 'TEXT');
 
   // Ensure any newer tables exist on older backups
   db.exec(`

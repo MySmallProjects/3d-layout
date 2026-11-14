@@ -377,6 +377,132 @@ async function runTests() {
   console.log('✓ Malformed and path-traversal zip rejection verified');
   console.log('✓ Phase 6a/6c lighting presets, HDRIs, renders, and backup inclusion verified');
 
+  // --- Phase 7.2: GLB optimisation, revert, settings & backup/restore tests ---
+  const { Document, NodeIO } = await import('@gltf-transform/core');
+  const { ALL_EXTENSIONS } = await import('@gltf-transform/extensions');
+  const { MeshoptDecoder } = await import('meshoptimizer');
+  await MeshoptDecoder.ready;
+  const sharp = (await import('sharp')).default;
+  const { optimiseModelById, revertModelById } = await import('../src/services/modelOptimisationService');
+
+  // Build a minimal valid textured GLB (128x128 patterned PNG + quad mesh so prune keeps the texture)
+  const texPixels = Buffer.alloc(128 * 128 * 4);
+  for (let y = 0; y < 128; y++) {
+    for (let x = 0; x < 128; x++) {
+      const idx = (y * 128 + x) * 4;
+      const checker = ((x >> 3) ^ (y >> 3)) & 1;
+      texPixels[idx] = checker ? 220 : 40;
+      texPixels[idx + 1] = (x * 2) & 255;
+      texPixels[idx + 2] = (y * 2) & 255;
+      texPixels[idx + 3] = 255;
+    }
+  }
+  const pngBuf = await sharp(texPixels, {
+    raw: { width: 128, height: 128, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+
+  const doc = new Document();
+  const buf = doc.createBuffer();
+  const posAcc = doc
+    .createAccessor()
+    .setType('VEC3')
+    .setArray(new Float32Array([0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]))
+    .setBuffer(buf);
+  const uvAcc = doc
+    .createAccessor()
+    .setType('VEC2')
+    .setArray(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]))
+    .setBuffer(buf);
+  const idxAcc = doc
+    .createAccessor()
+    .setType('SCALAR')
+    .setArray(new Uint16Array([0, 1, 2, 0, 2, 3]))
+    .setBuffer(buf);
+  const tex = doc.createTexture('albedo').setMimeType('image/png').setImage(pngBuf);
+  const mat = doc.createMaterial('mat').setBaseColorTexture(tex);
+  const prim = doc
+    .createPrimitive()
+    .setAttribute('POSITION', posAcc)
+    .setAttribute('TEXCOORD_0', uvAcc)
+    .setIndices(idxAcc)
+    .setMaterial(mat);
+  const mesh = doc.createMesh('quad').addPrimitive(prim);
+  const node = doc.createNode('quadNode').setMesh(mesh);
+  doc.createScene('scene').addChild(node);
+
+  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({
+    'meshopt.decoder': MeshoptDecoder,
+  });
+  const rawGlbBytes = await io.writeBinary(doc);
+  const rawGlbTemp = path.join(os.tmpdir(), `opt-test-${Date.now()}.glb`);
+  fs.writeFileSync(rawGlbTemp, rawGlbBytes);
+
+  const optModel = createModel('OptTest.glb', null, rawGlbTemp, rawGlbBytes.byteLength);
+  updateAppSettings({ optimisation: { enabledOnUpload: true, maxTextureSize: 64, webpQuality: 75 } });
+
+  const optimised = await optimiseModelById(optModel.id, { maxTextureSize: 64, webpQuality: 75 });
+  assert.strictEqual(optimised.optimisation?.optimised, true, 'Model should be marked optimised');
+  assert.strictEqual(optimised.optimisation?.originalSizeBytes, rawGlbBytes.byteLength);
+  assert(optimised.optimisation?.originalFilePath, 'Original backup path must be recorded');
+  const origAbs = path.join(DATA_DIR, optimised.optimisation!.originalFilePath);
+  assert(fs.existsSync(origAbs), 'Original GLB backup must exist on disk');
+  assert(Buffer.compare(fs.readFileSync(origAbs), Buffer.from(rawGlbBytes)) === 0, 'Original backup bytes match');
+
+  // Verify optimised GLB reads back with WebP texture <= 64px
+  const optDoc = await io.read(path.join(DATA_DIR, optimised.filePath));
+  const outTex = optDoc.getRoot().listTextures()[0];
+  assert.strictEqual(outTex.getMimeType(), 'image/webp', 'Texture must be converted to WebP');
+  const outMeta = await sharp(Buffer.from(outTex.getImage()!)).metadata();
+  assert((outMeta.width ?? 0) <= 64 && (outMeta.height ?? 0) <= 64, 'Texture resized to <= maxTextureSize');
+
+  // Verify backup -> reset -> restore keeps both optimised GLB, original backup, and optimisation settings
+  const optBackupZip = path.join(os.tmpdir(), `test-opt-backup-${Date.now()}.zip`);
+  await createBackupArchive(fs.createWriteStream(optBackupZip));
+  resetAllData('RESET');
+  assert(!fs.existsSync(origAbs), 'Original backup wiped on reset');
+  const optVal = await validateBackupZip(optBackupZip);
+  await confirmRestoreBackup(optVal.token);
+  if (fs.existsSync(optBackupZip)) fs.unlinkSync(optBackupZip);
+
+  const restoredOpt = getModel(optModel.id);
+  assert.strictEqual(restoredOpt?.optimisation?.optimised, true, 'Optimisation metadata restored');
+  assert(fs.existsSync(origAbs), 'Original GLB backup restored from archive');
+  assert.strictEqual(getAppSettings().optimisation.enabledOnUpload, true, 'Optimisation upload flag restored');
+  assert.strictEqual(getAppSettings().optimisation.maxTextureSize, 64, 'Max texture setting restored');
+
+  // Verify revert restores original bytes and removes backup file
+  const reverted = await revertModelById(optModel.id);
+  assert(!reverted.optimisation, 'Revert clears optimisation metadata');
+  assert.strictEqual(reverted.sizeBytes, rawGlbBytes.byteLength, 'Revert restores original size');
+  assert(!fs.existsSync(origAbs), 'Revert deletes backup original');
+  assert(
+    Buffer.compare(fs.readFileSync(path.join(DATA_DIR, reverted.filePath)), Buffer.from(rawGlbBytes)) === 0,
+    'Reverted GLB bytes match original exactly'
+  );
+  deleteModel(optModel.id);
+
+  // Verify v2 -> v3 migration adds models.optimisation
+  const legacyV2Db = new DatabaseMod(':memory:');
+  legacyV2Db.exec(`
+    CREATE TABLE models (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      folder_id TEXT,
+      file_path TEXT NOT NULL,
+      thumbnail_path TEXT,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      normalisation TEXT
+    );
+  `);
+  migrateDatabase(legacyV2Db, 2);
+  const v3Cols = legacyV2Db.prepare('PRAGMA table_info("models")').all() as { name: string }[];
+  assert(v3Cols.some((c) => c.name === 'optimisation'), 'v2 -> v3 migration must add models.optimisation');
+  legacyV2Db.close();
+  console.log('✓ Phase 7.2 GLB optimisation, WebP/Meshopt output, backup/restore, revert & v2->v3 migration verified');
+
   // Clean up isolated temp DATA_DIR if running in tmpdir
   if (DATA_DIR.startsWith(os.tmpdir())) {
     const { closeDatabase } = await import('../src/db/connection');

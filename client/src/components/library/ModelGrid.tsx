@@ -5,6 +5,7 @@ import { LibraryModel } from '../../types';
 import { ModelCard } from './ModelCard';
 import { Modal } from '../common/Modal';
 import { ModelNormalisationModal } from './ModelNormalisationModal';
+import { ModelOptimisationModal } from './ModelOptimisationModal';
 
 export const ModelGrid: React.FC = () => {
   const {
@@ -25,6 +26,7 @@ export const ModelGrid: React.FC = () => {
 
   const [deleteTarget, setDeleteTarget] = useState<LibraryModel | null>(null);
   const [normTarget, setNormTarget] = useState<LibraryModel | null>(null);
+  const [optTarget, setOptTarget] = useState<LibraryModel | null>(null);
 
   const handleRenameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +138,7 @@ export const ModelGrid: React.FC = () => {
                 setTargetFolderId(m.folderId || '');
               }}
               onNormalise={(m) => setNormTarget(m)}
+              onOptimise={(m) => setOptTarget(m)}
               onDelete={(m) => setDeleteTarget(m)}
             />
           ))
@@ -307,6 +310,10 @@ export const ModelGrid: React.FC = () => {
       <ModelNormalisationModal
         model={normTarget}
         onClose={() => setNormTarget(null)}
+      />
+      <ModelOptimisationModal
+        model={optTarget}
+        onClose={() => setOptTarget(null)}
       />
     </div>
   );

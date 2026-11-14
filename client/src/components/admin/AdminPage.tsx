@@ -20,6 +20,7 @@ import {
 } from '../../api/admin';
 import { ResetConfirmModal } from './ResetConfirmModal';
 import { NormalisationAdminSection } from './NormalisationAdminSection';
+import { OptimisationAdminSection } from './OptimisationAdminSection';
 
 interface AdminPageProps {
   onBackToEditor: () => void;
@@ -423,6 +424,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToEditor }) => {
         </section>
 
         <NormalisationAdminSection cardStyle={cardStyle} onStatus={setStatusMsg} />
+        <OptimisationAdminSection
+          cardStyle={cardStyle}
+          onStatus={setStatusMsg}
+          onModelsChanged={loadOverview}
+        />
 
         {/* Danger Zone */}
         <section

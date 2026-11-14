@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Loader2, Edit2, FolderInput, RefreshCw, Ruler, Trash2 } from 'lucide-react';
+import { Box, Loader2, Edit2, FolderInput, RefreshCw, RotateCcw, Ruler, Sparkles, Trash2 } from 'lucide-react';
 import { LibraryModel } from '../../types';
 import { useLibraryStore } from '../../store/libraryStore';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
@@ -9,15 +9,38 @@ interface ModelCardProps {
   onRename: (model: LibraryModel) => void;
   onMove: (model: LibraryModel) => void;
   onNormalise: (model: LibraryModel) => void;
+  onOptimise: (model: LibraryModel) => void;
   onDelete: (model: LibraryModel) => void;
 }
 
-export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, onNormalise, onDelete }) => {
-  const { generatingThumbnails, regenerateThumbnail, renormaliseModel, showToast } = useLibraryStore();
+export const ModelCard: React.FC<ModelCardProps> = ({
+  model,
+  onRename,
+  onMove,
+  onNormalise,
+  onOptimise,
+  onDelete
+}) => {
+  const {
+    generatingThumbnails,
+    optimisingModels,
+    regenerateThumbnail,
+    renormaliseModel,
+    optimiseModel,
+    revertModel,
+    showToast
+  } = useLibraryStore();
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [imgError, setImgError] = useState(false);
 
   const isGenerating = !!generatingThumbnails[model.id];
+  const isOptimising = !!optimisingModels[model.id];
+  const opt = model.optimisation;
+  const isOptimised = Boolean(opt?.optimised);
+  const savedPct =
+    opt && opt.originalSizeBytes > 0
+      ? Math.round((1 - opt.optimisedSizeBytes / opt.originalSizeBytes) * 100)
+      : 0;
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024 * 1024) {
@@ -62,6 +85,38 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, o
           .catch((err) => showToast(err instanceof Error ? err.message : 'Re-normalise failed', 'error'));
       }
     },
+    {
+      label: 'GLB Optimisation...',
+      icon: <Sparkles size={14} />,
+      onClick: () => onOptimise(model)
+    },
+    isOptimised
+      ? {
+          label: 'Revert to Original GLB',
+          icon: <RotateCcw size={14} />,
+          onClick: () => {
+            revertModel(model.id)
+              .then((u) => showToast(`Reverted "${model.name}" (${formatSize(u.sizeBytes)})`, 'success'))
+              .catch((err) => showToast(err instanceof Error ? err.message : 'Revert failed', 'error'));
+          }
+        }
+      : {
+          label: 'Optimise GLB Now',
+          icon: <Sparkles size={14} />,
+          onClick: () => {
+            optimiseModel(model.id)
+              .then((u) => {
+                const after = u.optimisation;
+                showToast(
+                  after
+                    ? `Optimised "${model.name}": ${formatSize(after.originalSizeBytes)} → ${formatSize(after.optimisedSizeBytes)}`
+                    : `Optimised "${model.name}"`,
+                  'success'
+                );
+              })
+              .catch((err) => showToast(err instanceof Error ? err.message : 'Optimisation failed', 'error'));
+          }
+        },
     {
       label: 'Regenerate Thumbnail',
       icon: <RefreshCw size={14} />,
@@ -175,22 +230,50 @@ export const ModelCard: React.FC<ModelCardProps> = ({ model, onRename, onMove, o
           >
             {model.name}
           </div>
-          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>{formatSize(model.sizeBytes)}</span>
-            {model.normalisation?.enabled && (
-              <span
-                title={`Normalised target size: ${model.normalisation.targetSize}`}
-                style={{
-                  fontSize: '9px',
-                  padding: '1px 4px',
-                  borderRadius: '3px',
-                  backgroundColor: 'rgba(59,130,246,0.18)',
-                  color: '#93c5fd',
-                }}
-              >
-                {model.normalisation.targetSize}m
-              </span>
-            )}
+          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '4px' }}>
+            <span
+              title={
+                isOptimised && opt
+                  ? `Original: ${formatSize(opt.originalSizeBytes)} → Optimised: ${formatSize(opt.optimisedSizeBytes)}`
+                  : undefined
+              }
+            >
+              {isOptimising
+                ? 'Optimising...'
+                : isOptimised && opt
+                  ? `${formatSize(opt.originalSizeBytes)} → ${formatSize(model.sizeBytes)}`
+                  : formatSize(model.sizeBytes)}
+            </span>
+            <span style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }}>
+              {isOptimised && (
+                <span
+                  title={`Optimised (Meshopt + WebP, ${savedPct >= 0 ? `-${savedPct}%` : `+${-savedPct}%`})`}
+                  style={{
+                    fontSize: '9px',
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                    backgroundColor: 'rgba(34, 197, 94, 0.14)',
+                    color: '#4ade80',
+                  }}
+                >
+                  {savedPct > 0 ? `-${savedPct}%` : 'Opt'}
+                </span>
+              )}
+              {model.normalisation?.enabled && (
+                <span
+                  title={`Normalised target size: ${model.normalisation.targetSize}`}
+                  style={{
+                    fontSize: '9px',
+                    padding: '1px 4px',
+                    borderRadius: '3px',
+                    backgroundColor: 'rgba(59,130,246,0.18)',
+                    color: '#93c5fd',
+                  }}
+                >
+                  {model.normalisation.targetSize}m
+                </span>
+              )}
+            </span>
           </div>
         </div>
       </div>

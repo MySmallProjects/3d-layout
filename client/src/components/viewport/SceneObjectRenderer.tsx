@@ -8,6 +8,10 @@ import { useLibraryStore } from '../../store/libraryStore';
 // In-memory cache for parsed GLTF scenes to avoid re-fetching identical 10MB files
 const gltfCache = new Map<string, THREE.Group>();
 
+export function invalidateGltfCache(modelId: string): void {
+  gltfCache.delete(modelId);
+}
+
 interface SceneObjectRendererProps {
   object: SceneObject;
 }

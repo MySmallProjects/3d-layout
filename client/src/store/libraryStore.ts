@@ -13,11 +13,14 @@ import {
   moveModelApi,
   deleteModelApi,
   uploadThumbnailApi,
-  updateModelNormalisationApi
+  updateModelNormalisationApi,
+  optimiseModelApi,
+  revertModelApi
 } from '../api/models';
 import { fetchAppSettings, updateAppSettingsApi } from '../api/settings';
 import { generateThumbnailDataUrl } from '../services/thumbnailGenerator';
 import { computeModelNormalisationFromUrl } from '../utils/modelNormalisation';
+import { invalidateGltfCache } from '../components/viewport/SceneObjectRenderer';
 
 interface LibraryState {
   models: LibraryModel[];
@@ -28,6 +31,7 @@ interface LibraryState {
   isLoading: boolean;
   uploadProgress: { total: number; completed: number; currentName?: string } | null;
   generatingThumbnails: Record<string, boolean>;
+  optimisingModels: Record<string, boolean>;
   appSettings: AppSettings;
   toast: { message: string; type: 'info' | 'success' | 'error' } | null;
 
@@ -47,6 +51,8 @@ interface LibraryState {
   regenerateThumbnail: (id: string) => Promise<void>;
   updateModelNormalisation: (id: string, norm: ModelNormalisation | null) => Promise<LibraryModel>;
   renormaliseModel: (id: string, targetSizeOverride?: number, enabledOverride?: boolean) => Promise<LibraryModel>;
+  optimiseModel: (id: string, options?: { maxTextureSize?: number; webpQuality?: number }) => Promise<LibraryModel>;
+  revertModel: (id: string) => Promise<LibraryModel>;
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void;
   clearToast: () => void;
 }
@@ -60,6 +66,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   isLoading: false,
   uploadProgress: null,
   generatingThumbnails: {},
+  optimisingModels: {},
   appSettings: DEFAULT_APP_SETTINGS,
   toast: null,
 
@@ -263,5 +270,37 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       enabled
     );
     return get().updateModelNormalisation(id, computed);
+  },
+
+  optimiseModel: async (id, options) => {
+    set((s) => ({ optimisingModels: { ...s.optimisingModels, [id]: true } }));
+    try {
+      const updated = await optimiseModelApi(id, options);
+      invalidateGltfCache(id);
+      set((s) => ({ models: s.models.map((m) => (m.id === id ? updated : m)) }));
+      return updated;
+    } finally {
+      set((s) => {
+        const next = { ...s.optimisingModels };
+        delete next[id];
+        return { optimisingModels: next };
+      });
+    }
+  },
+
+  revertModel: async (id) => {
+    set((s) => ({ optimisingModels: { ...s.optimisingModels, [id]: true } }));
+    try {
+      const updated = await revertModelApi(id);
+      invalidateGltfCache(id);
+      set((s) => ({ models: s.models.map((m) => (m.id === id ? updated : m)) }));
+      return updated;
+    } finally {
+      set((s) => {
+        const next = { ...s.optimisingModels };
+        delete next[id];
+        return { optimisingModels: next };
+      });
+    }
   }
 }));

@@ -1,8 +1,7 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
+import { createConfiguredGLTFLoader } from '../services/gltfLoader';
 import {
   GradientEquirectTexture,
   PhysicalCamera,
@@ -219,8 +218,7 @@ export async function renderScenePathTraced(
 
     // Load each unique GLB once to keep multi-instance 10MB+ scenes within memory limits.
     const visibleObjects = objects.filter((o) => o.visible);
-    const gltfLoader = new GLTFLoader();
-    gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+    const gltfLoader = await createConfiguredGLTFLoader();
 
     for (let i = 0; i < visibleObjects.length; i++) {
       checkAbort(signal);

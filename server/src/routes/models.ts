@@ -12,6 +12,8 @@ import {
   saveThumbnail,
   updateModelNormalisation
 } from '../services/modelService';
+import { optimiseModelById, revertModelById } from '../services/modelOptimisationService';
+import { getAppSettings } from '../services/settingsService';
 import { DATA_DIR, MAX_FILE_SIZE_BYTES } from '../config';
 
 export const modelsRouter = Router();
@@ -83,7 +85,7 @@ modelsRouter.get('/:id', (req: Request, res: Response) => {
 modelsRouter.post('/upload', (req: Request, res: Response) => {
   const uploadHandler = upload.array('files');
 
-  uploadHandler(req, res, (err: unknown) => {
+  uploadHandler(req, res, async (err: unknown) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         const mb = Math.round(MAX_FILE_SIZE_BYTES / (1024 * 1024));
@@ -108,10 +110,21 @@ modelsRouter.post('/upload', (req: Request, res: Response) => {
 
     const folderId = req.body.folderId || null;
     const createdModels = [];
+    const optSettings = getAppSettings().optimisation;
 
     try {
       for (const file of files) {
-        const model = createModel(file.originalname, folderId, file.path, file.size);
+        let model = createModel(file.originalname, folderId, file.path, file.size);
+        if (optSettings.enabledOnUpload) {
+          try {
+            model = await optimiseModelById(model.id, {
+              maxTextureSize: optSettings.maxTextureSize,
+              webpQuality: optSettings.webpQuality,
+            });
+          } catch (optErr) {
+            console.warn(`Auto-optimisation skipped for "${model.name}":`, optErr);
+          }
+        }
         createdModels.push(model);
       }
       res.status(201).json({ success: true, data: { models: createdModels } });
@@ -158,6 +171,32 @@ modelsRouter.patch('/:id/normalisation', (req: Request, res: Response) => {
     res.json({ success: true, data: model });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to update model normalisation';
+    res.status(400).json({ success: false, error: message });
+  }
+});
+
+// POST /api/models/:id/optimise
+modelsRouter.post('/:id/optimise', async (req: Request, res: Response) => {
+  try {
+    const { maxTextureSize, webpQuality } = (req.body || {}) as {
+      maxTextureSize?: number;
+      webpQuality?: number;
+    };
+    const model = await optimiseModelById(req.params.id, { maxTextureSize, webpQuality });
+    res.json({ success: true, data: model });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to optimise GLB model';
+    res.status(400).json({ success: false, error: message });
+  }
+});
+
+// POST /api/models/:id/revert
+modelsRouter.post('/:id/revert', (req: Request, res: Response) => {
+  try {
+    const model = revertModelById(req.params.id);
+    res.json({ success: true, data: model });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to revert model to original';
     res.status(400).json({ success: false, error: message });
   }
 });

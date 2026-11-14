@@ -78,7 +78,7 @@ The agent ticks items as completed, and lists any skipped or simplified items un
 
 ## Phase 7: Extra features
 - [x] 7.1 Import normalisation
-- [ ] 7.2 Optional GLB optimisation (meshopt, texture resize, WebP) with revert
+- [x] 7.2 Optional GLB optimisation (meshopt, texture resize, WebP) with revert
 - [ ] 7.3 Camera bookmarks
 - [ ] 7.4 Batch render
 - [ ] 7.5 Grouping / parenting

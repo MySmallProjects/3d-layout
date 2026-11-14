@@ -76,3 +76,19 @@ export async function updateModelNormalisationApi(
     body: JSON.stringify({ normalisation })
   });
 }
+
+export async function optimiseModelApi(
+  id: string,
+  options?: { maxTextureSize?: number; webpQuality?: number }
+): Promise<LibraryModel> {
+  return apiRequest<LibraryModel>(`/api/models/${id}/optimise`, {
+    method: 'POST',
+    body: JSON.stringify(options || {})
+  });
+}
+
+export async function revertModelApi(id: string): Promise<LibraryModel> {
+  return apiRequest<LibraryModel>(`/api/models/${id}/revert`, {
+    method: 'POST'
+  });
+}

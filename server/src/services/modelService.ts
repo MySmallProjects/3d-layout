@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { getDatabase } from '../db/connection';
 import { DATA_DIR, MODELS_DIR, THUMBNAILS_DIR } from '../config';
-import { LibraryModel, ModelNormalisation } from '../../../shared/types';
+import { LibraryModel, ModelNormalisation, ModelOptimisation } from '../../../shared/types';
 import { sanitizeName } from '../utils/sanitize';
 
 interface ModelRow {
@@ -15,12 +15,13 @@ interface ModelRow {
   size_bytes: number;
   created_at: string;
   normalisation: string | null;
+  optimisation: string | null;
 }
 
-function parseNormalisation(raw: string | null): ModelNormalisation | null {
+function parseJsonColumn<T>(raw: string | null): T | null {
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ModelNormalisation;
+    return JSON.parse(raw) as T;
   } catch {
     return null;
   }
@@ -35,7 +36,8 @@ function rowToModel(row: ModelRow): LibraryModel {
     thumbnailPath: row.thumbnail_path,
     sizeBytes: row.size_bytes,
     createdAt: row.created_at,
-    normalisation: parseNormalisation(row.normalisation),
+    normalisation: parseJsonColumn<ModelNormalisation>(row.normalisation),
+    optimisation: parseJsonColumn<ModelOptimisation>(row.optimisation),
   };
 }
 
@@ -178,6 +180,18 @@ export function deleteModel(id: string): void {
         fs.unlinkSync(fullThumbPath);
       } catch (e) {
         console.error(`Failed to delete thumbnail file: ${fullThumbPath}`, e);
+      }
+    }
+  }
+
+  // Remove original backup GLB if optimised
+  if (model.optimisation?.originalFilePath) {
+    const fullOriginalPath = path.join(DATA_DIR, model.optimisation.originalFilePath);
+    if (fs.existsSync(fullOriginalPath)) {
+      try {
+        fs.unlinkSync(fullOriginalPath);
+      } catch (e) {
+        console.error(`Failed to delete original model file: ${fullOriginalPath}`, e);
       }
     }
   }

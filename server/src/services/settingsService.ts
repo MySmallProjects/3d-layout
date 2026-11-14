@@ -12,6 +12,16 @@ function sanitizeSettings(raw: Partial<AppSettings> | undefined): AppSettings {
       ? Math.min(1000, Math.max(0.01, norm.defaultTargetSize))
       : DEFAULT_APP_SETTINGS.normalization.defaultTargetSize;
 
+  const opt = raw?.optimisation;
+  const maxTextureSize =
+    typeof opt?.maxTextureSize === 'number' && Number.isFinite(opt.maxTextureSize) && opt.maxTextureSize >= 64
+      ? Math.min(8192, Math.max(64, Math.round(opt.maxTextureSize)))
+      : DEFAULT_APP_SETTINGS.optimisation.maxTextureSize;
+  const webpQuality =
+    typeof opt?.webpQuality === 'number' && Number.isFinite(opt.webpQuality)
+      ? Math.min(100, Math.max(10, Math.round(opt.webpQuality)))
+      : DEFAULT_APP_SETTINGS.optimisation.webpQuality;
+
   return {
     normalization: {
       enabledByDefault:
@@ -19,6 +29,14 @@ function sanitizeSettings(raw: Partial<AppSettings> | undefined): AppSettings {
           ? norm.enabledByDefault
           : DEFAULT_APP_SETTINGS.normalization.enabledByDefault,
       defaultTargetSize: targetSize,
+    },
+    optimisation: {
+      enabledOnUpload:
+        typeof opt?.enabledOnUpload === 'boolean'
+          ? opt.enabledOnUpload
+          : DEFAULT_APP_SETTINGS.optimisation.enabledOnUpload,
+      maxTextureSize,
+      webpQuality,
     },
   };
 }
@@ -42,6 +60,10 @@ export function updateAppSettings(patch: Partial<AppSettings>): AppSettings {
     normalization: {
       ...current.normalization,
       ...(patch.normalization || {}),
+    },
+    optimisation: {
+      ...current.optimisation,
+      ...(patch.optimisation || {}),
     },
   });
 

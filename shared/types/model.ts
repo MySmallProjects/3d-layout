@@ -13,6 +13,16 @@ export interface ModelNormalisation {
   rawDimensions?: [number, number, number];
 }
 
+export interface ModelOptimisation {
+  optimised: boolean;
+  originalFilePath: string;
+  originalSizeBytes: number;
+  optimisedSizeBytes: number;
+  maxTextureSize: number;
+  webpQuality: number;
+  optimisedAt: string;
+}
+
 export interface LibraryModel {
   id: string;
   name: string;
@@ -22,6 +32,7 @@ export interface LibraryModel {
   sizeBytes: number;
   createdAt: string;
   normalisation?: ModelNormalisation | null;
+  optimisation?: ModelOptimisation | null;
 }
 
 export interface FolderNode extends Folder {

@@ -1,8 +1,7 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
+import { createConfiguredGLTFLoader } from '../services/gltfLoader';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
@@ -217,8 +216,7 @@ export async function renderSceneOffscreen(
 
     // Load visible scene objects (cache GLTF per modelId)
     const visibleObjects = objects.filter((o) => o.visible);
-    const gltfLoader = new GLTFLoader();
-    gltfLoader.setMeshoptDecoder(MeshoptDecoder);
+    const gltfLoader = await createConfiguredGLTFLoader();
     const modelCache = new Map<string, THREE.Group>();
 
     for (let i = 0; i < visibleObjects.length; i++) {
