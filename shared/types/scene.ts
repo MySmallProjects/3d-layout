@@ -37,6 +37,17 @@ export interface CameraBookmark {
   createdAt: string;
 }
 
+export type GroundPlaneType = 'none' | 'shadow-catcher' | 'color' | 'image';
+
+export interface GroundPlaneConfig {
+  type: GroundPlaneType;
+  visible: boolean;
+  size: number;
+  color?: string;
+  imagePath?: string;
+  textureRepeat?: number;
+}
+
 export interface SceneData {
   schemaVersion: number;
   objects: SceneObject[];
@@ -45,7 +56,7 @@ export interface SceneData {
   camera: CameraState;
   lighting: Record<string, unknown>;
   renderSettings: Record<string, unknown>;
-  groundPlane?: Record<string, unknown>;
+  groundPlane?: GroundPlaneConfig;
   cameraBookmarks?: CameraBookmark[];
 }
 

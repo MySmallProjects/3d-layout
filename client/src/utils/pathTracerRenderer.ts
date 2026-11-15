@@ -10,6 +10,7 @@ import {
 import { sphericalToCartesian } from '../constants/lightingPresets';
 import { wrapWithAppliedNormalisation } from './modelNormalisation';
 import { isEffectivelyVisible } from './sceneHierarchy';
+import { createGroundPlaneMesh } from './groundPlaneThree';
 import {
   checkAbort,
   createThumbnailFromDataUrl,
@@ -41,6 +42,42 @@ function disposeObjectSubtree(root: THREE.Object3D): void {
       }
     }
   });
+}
+
+/**
+ * Converts Meshopt / KHR_mesh_quantization interleaved or normalized integer attributes
+ * (Int8Array, Int16Array, Uint8Array, Uint16Array) into standard Float32BufferAttributes.
+ * `three-gpu-pathtracer`'s `convertToStaticGeometry` and `mergeGeometries` clone attribute
+ * typed-array constructors directly and write world-space floats into them, which truncates
+ * quantized integer buffers unless converted to Float32 first.
+ */
+function dequantizeGeometryForPathTracer(srcGeom: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geom = new THREE.BufferGeometry();
+  for (const g of srcGeom.groups) {
+    geom.addGroup(g.start, g.count, g.materialIndex);
+  }
+  if (srcGeom.index) {
+    const idxAttr = srcGeom.index;
+    const indices = new Uint32Array(idxAttr.count);
+    for (let i = 0; i < idxAttr.count; i++) {
+      indices[i] = idxAttr.getX(i);
+    }
+    geom.setIndex(new THREE.Uint32BufferAttribute(indices, 1));
+  }
+  for (const [name, attr] of Object.entries(srcGeom.attributes)) {
+    const count = attr.count;
+    const itemSize = attr.itemSize;
+    const arr = new Float32Array(count * itemSize);
+    for (let i = 0; i < count; i++) {
+      const base = i * itemSize;
+      arr[base] = attr.getX(i);
+      if (itemSize >= 2) arr[base + 1] = attr.getY(i);
+      if (itemSize >= 3) arr[base + 2] = attr.getZ(i);
+      if (itemSize >= 4) arr[base + 3] = attr.getW(i);
+    }
+    geom.setAttribute(name, new THREE.Float32BufferAttribute(arr, itemSize, false));
+  }
+  return geom;
 }
 
 /**
@@ -79,7 +116,7 @@ function ensureSceneRotationSupport(): void {
 export async function renderScenePathTraced(
   input: OffscreenRenderInput
 ): Promise<OffscreenRenderOutput> {
-  const { objects, background, cameraState, settings, hdris, signal, onProgress } = input;
+  const { objects, background, groundPlane, cameraState, settings, hdris, signal, onProgress } = input;
   const { width, height } = settings;
 
   onProgress?.(2, 'Initializing path tracer (WebGL2)...');
@@ -158,14 +195,16 @@ export async function renderScenePathTraced(
 
     // Lighting (WebGLPathTracer supports DirectionalLight & equirectangular scene.environment)
     const { lighting } = settings;
-    const addDirLight = (cfg: typeof lighting.keyLight) => {
+    let keyDirLight: THREE.DirectionalLight | null = null;
+    const addDirLight = (cfg: typeof lighting.keyLight, isKey = false) => {
       if (cfg.intensity <= 0) return;
       const pos = sphericalToCartesian(cfg.azimuthDeg, cfg.elevationDeg);
       const light = new THREE.DirectionalLight(cfg.color, cfg.intensity);
       light.position.set(...pos);
       scene.add(light);
+      if (isKey) keyDirLight = light;
     };
-    addDirLight(lighting.keyLight);
+    addDirLight(lighting.keyLight, true);
     addDirLight(lighting.fillLight);
     addDirLight(lighting.rimLight);
 
@@ -202,19 +241,9 @@ export async function renderScenePathTraced(
 
     checkAbort(signal);
 
-    if (settings.groundPlaneEnabled) {
-      const groundGeo = new THREE.PlaneGeometry(100, 100);
-      const groundMat = settings.groundShadowOnly
-        ? new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1.0, metalness: 0.0 })
-        : new THREE.MeshStandardMaterial({ color: settings.groundColor, roughness: 0.9, metalness: 0.0 });
-      if (settings.groundShadowOnly) {
-        (groundMat as unknown as { matte?: boolean }).matte = true;
-      }
-      const ground = new THREE.Mesh(groundGeo, groundMat);
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.y = -0.001;
+    const ground = await createGroundPlaneMesh(groundPlane, settings, true, disposables);
+    if (ground) {
       scene.add(ground);
-      disposables.push(groundGeo, groundMat);
     }
 
     // Load each unique GLB once and preserve group hierarchy.
@@ -242,6 +271,20 @@ export async function renderScenePathTraced(
         try {
           const gltf = await gltfLoader.loadAsync(`/api/models/${obj.modelId}/file`);
           baseGroup = gltf.scene;
+          const convertedGeoms = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
+          baseGroup.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.geometry) {
+              let converted = convertedGeoms.get(child.geometry);
+              if (!converted) {
+                converted = dequantizeGeometryForPathTracer(child.geometry);
+                convertedGeoms.set(child.geometry, converted);
+              }
+              child.geometry = converted;
+            }
+          });
+          for (const origGeom of convertedGeoms.keys()) {
+            origGeom.dispose();
+          }
           modelCache.set(obj.modelId, baseGroup);
         } catch {
           continue;
@@ -331,7 +374,82 @@ export async function renderScenePathTraced(
     }
 
     onProgress?.(97, 'Encoding PNG...');
-    const imageDataUrl = renderer.domElement.toDataURL('image/png');
+    const isShadowCatcher = groundPlane
+      ? groundPlane.visible && groundPlane.type === 'shadow-catcher'
+      : settings.groundPlaneEnabled && settings.groundShadowOnly;
+
+    let imageDataUrl: string;
+    if (isShadowCatcher && keyDirLight && lighting.keyLight.castShadow !== false) {
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = width;
+      outCanvas.height = height;
+      const ctx = outCanvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(renderer.domElement, 0, 0);
+
+        // Render a depth-occluded ShadowMaterial pass on an alpha-enabled renderer
+        const shadowRenderer = new THREE.WebGLRenderer({
+          antialias: true,
+          alpha: true,
+          preserveDrawingBuffer: true,
+          powerPreference: 'high-performance',
+        });
+        try {
+          shadowRenderer.setPixelRatio(1);
+          shadowRenderer.setSize(width, height, false);
+          shadowRenderer.setClearColor(0x000000, 0);
+          shadowRenderer.shadowMap.enabled = true;
+          shadowRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+          scene.background = null;
+          scene.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              child.castShadow = true;
+              const mats = Array.isArray(child.material) ? child.material : [child.material];
+              for (const m of mats) {
+                if (m) {
+                  m.colorWrite = false;
+                  m.depthWrite = true;
+                }
+              }
+            }
+          });
+
+          const dl = keyDirLight as THREE.DirectionalLight;
+          const groundSize = Math.max(1, groundPlane?.size || 100);
+          dl.castShadow = true;
+          dl.shadow.mapSize.set(2048, 2048);
+          dl.shadow.camera.near = 0.5;
+          dl.shadow.camera.far = 80;
+          const d = Math.min(50, Math.max(15, groundSize / 2));
+          dl.shadow.camera.left = -d;
+          dl.shadow.camera.right = d;
+          dl.shadow.camera.top = d;
+          dl.shadow.camera.bottom = -d;
+          dl.shadow.bias = -0.0005;
+
+          const shadowGeo = new THREE.PlaneGeometry(groundSize, groundSize);
+          const shadowMat = new THREE.ShadowMaterial({ opacity: 0.45 });
+          const shadowPlane = new THREE.Mesh(shadowGeo, shadowMat);
+          shadowPlane.rotation.x = -Math.PI / 2;
+          shadowPlane.position.y = -0.001;
+          shadowPlane.receiveShadow = true;
+          scene.add(shadowPlane);
+          disposables.push(shadowGeo, shadowMat);
+
+          shadowRenderer.render(scene, camera);
+          ctx.drawImage(shadowRenderer.domElement, 0, 0);
+        } finally {
+          shadowRenderer.dispose();
+        }
+        imageDataUrl = outCanvas.toDataURL('image/png');
+      } else {
+        imageDataUrl = renderer.domElement.toDataURL('image/png');
+      }
+    } else {
+      imageDataUrl = renderer.domElement.toDataURL('image/png');
+    }
+
     const thumbnailDataUrl = await createThumbnailFromDataUrl(imageDataUrl, 480);
 
     onProgress?.(100, 'Complete');

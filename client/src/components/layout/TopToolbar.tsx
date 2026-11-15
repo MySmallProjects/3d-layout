@@ -22,10 +22,12 @@ import {
   ChevronDown,
   Sun,
   Images,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Layers
 } from 'lucide-react';
 import { useSceneStore } from '../../store/sceneStore';
 import { BackgroundModal } from '../scene/BackgroundModal';
+import { GroundPlaneModal } from '../scene/GroundPlaneModal';
 
 interface TopToolbarProps {
   onOpenHelp: () => void;
@@ -75,6 +77,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
   } = useSceneStore();
 
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
+  const [isGroundModalOpen, setIsGroundModalOpen] = useState(false);
   const [isSnapMenuOpen, setIsSnapMenuOpen] = useState(false);
   const [isSceneMenuOpen, setIsSceneMenuOpen] = useState(false);
   const snapMenuRef = useRef<HTMLDivElement>(null);
@@ -533,6 +536,23 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
             </button>
 
             <button
+              onClick={() => setIsGroundModalOpen(true)}
+              title="Ground plane settings"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: 'var(--text-muted)'
+              }}
+            >
+              <Layers size={14} />
+              <span>Ground</span>
+            </button>
+
+            <button
               onClick={triggerFocus}
               disabled={selectedObjectIds.length === 0}
               title="Focus Selected (F)"
@@ -667,6 +687,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
       <BackgroundModal
         isOpen={isBgModalOpen}
         onClose={() => setIsBgModalOpen(false)}
+      />
+      <GroundPlaneModal
+        isOpen={isGroundModalOpen}
+        onClose={() => setIsGroundModalOpen(false)}
       />
     </>
   );

@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import * as THREE from 'three';
 import { SceneObject, BackgroundConfig } from '../types';
-import type { AppliedNormalisation, CameraBookmark, CameraState, SceneData } from '@shared/types/scene';
+import type {
+  AppliedNormalisation,
+  CameraBookmark,
+  CameraState,
+  GroundPlaneConfig,
+  SceneData,
+} from '@shared/types/scene';
 import type { LightingConfig } from '@shared/types/lighting';
 import type { RenderSettings } from '@shared/types/render';
 import { DEFAULT_LIGHTING_CONFIG, DEFAULT_RENDER_SETTINGS } from '../constants/lightingPresets';
@@ -28,12 +34,21 @@ export interface SnapSettings {
 
 const MAX_HISTORY_DEPTH = 50;
 
+export const DEFAULT_GROUND_PLANE: GroundPlaneConfig = {
+  type: 'shadow-catcher',
+  visible: true,
+  size: 100,
+  color: '#22252e',
+  textureRepeat: 1,
+};
+
 interface SceneState {
   objects: SceneObject[];
   selectedObjectIds: string[];
   hoveredObjectId: string | null;
   gridVisible: boolean;
   background: BackgroundConfig;
+  groundPlane: GroundPlaneConfig;
   focusTargetTimestamp: number;
   resetCameraTimestamp: number;
   snapToFloorTimestamp: number;
@@ -128,6 +143,9 @@ interface SceneState {
   renameCameraBookmark: (id: string, name: string) => void;
   updateCameraBookmarkFromCurrent: (id: string, cameraOverride?: CameraState) => void;
   deleteCameraBookmark: (id: string) => void;
+
+  // Ground Plane (Phase 7.7)
+  setGroundPlane: (patch: Partial<GroundPlaneConfig>) => void;
 }
 
 function getLiveCameraState(fallback: CameraState): CameraState {
@@ -179,6 +197,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   hoveredObjectId: null,
   gridVisible: true,
   background: { type: 'color', color: '#1a1c23' },
+  groundPlane: { ...DEFAULT_GROUND_PLANE },
   focusTargetTimestamp: 0,
   resetCameraTimestamp: 0,
   snapToFloorTimestamp: 0,
@@ -727,6 +746,9 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       objects: cloneObjects(data.objects || []),
       gridVisible: data.gridVisible ?? true,
       background: data.background || { type: 'color', color: '#1a1c23' },
+      groundPlane: data.groundPlane
+        ? { ...DEFAULT_GROUND_PLANE, ...data.groundPlane }
+        : { ...DEFAULT_GROUND_PLANE },
       cameraState: data.camera || { position: [8, 6, 8], target: [0, 0, 0] },
       lighting: loadedLighting,
       renderSettings: loadedRender,
@@ -750,6 +772,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       hoveredObjectId: null,
       gridVisible: true,
       background: { type: 'color', color: '#1a1c23' },
+      groundPlane: { ...DEFAULT_GROUND_PLANE },
       cameraState: { position: [8, 6, 8], target: [0, 0, 0] },
       lighting: DEFAULT_LIGHTING_CONFIG,
       renderSettings: DEFAULT_RENDER_SETTINGS,
@@ -776,7 +799,16 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   },
 
   serializeScene: (cameraOverride) => {
-    const { objects, gridVisible, background, cameraState, lighting, renderSettings, cameraBookmarks } = get();
+    const {
+      objects,
+      gridVisible,
+      background,
+      groundPlane,
+      cameraState,
+      lighting,
+      renderSettings,
+      cameraBookmarks,
+    } = get();
     return {
       schemaVersion: 1,
       objects: cloneObjects(objects),
@@ -785,7 +817,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       camera: cameraOverride ?? cameraState,
       lighting: lighting as unknown as Record<string, unknown>,
       renderSettings: renderSettings as unknown as Record<string, unknown>,
-      groundPlane: {},
+      groundPlane: { ...groundPlane },
       cameraBookmarks: cloneBookmarks(cameraBookmarks)
     };
   },
@@ -802,6 +834,13 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set((state) => ({
       renderSettings: { ...state.renderSettings, ...patch },
       isDirty: true
+    }));
+  },
+
+  setGroundPlane: (patch) => {
+    set((state) => ({
+      groundPlane: { ...state.groundPlane, ...patch },
+      isDirty: true,
     }));
   },
 

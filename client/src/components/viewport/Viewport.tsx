@@ -5,6 +5,7 @@ import { useSceneStore } from '../../store/sceneStore';
 import { useLibraryStore } from '../../store/libraryStore';
 import { CameraControls } from './CameraControls';
 import { GridFloor } from './GridFloor';
+import { GroundPlaneRenderer } from './GroundPlaneRenderer';
 import { BackgroundRenderer } from './BackgroundRenderer';
 import { SceneObjectRenderer } from './SceneObjectRenderer';
 import { TransformGizmo } from './TransformGizmo';
@@ -186,6 +187,7 @@ export const Viewport: React.FC = () => {
       }}
     >
       <Canvas
+        shadows
         camera={{ position: [8, 6, 8], fov: 45, near: 0.1, far: 500 }}
         dpr={[1, 1.5]} // Capped pixel ratio for fast edit mode performance
         gl={{
@@ -202,7 +204,8 @@ export const Viewport: React.FC = () => {
         {/* Scene Environment / Background */}
         <BackgroundRenderer />
 
-        {/* Infinite Grid Floor */}
+        {/* Ground Plane & Infinite Grid Floor */}
+        <GroundPlaneRenderer />
         <GridFloor />
 
         {/* Camera Navigation */}

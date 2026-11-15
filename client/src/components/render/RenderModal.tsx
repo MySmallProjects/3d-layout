@@ -43,6 +43,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     objects,
     selectedObjectIds,
     background,
+    groundPlane,
     currentSceneId,
     currentSceneName,
     lighting,
@@ -50,6 +51,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
     cameraBookmarks,
     setLighting,
     setRenderSettings,
+    setGroundPlane,
   } = useSceneStore();
   const { showToast } = useLibraryStore();
 
@@ -172,6 +174,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
             {
               objects,
               background,
+              groundPlane,
               cameraState: bookmark.camera,
               settings: settingsSnapshot,
               hdris: latestHdriList,
@@ -236,6 +239,7 @@ export const RenderModal: React.FC<RenderModalProps> = ({
         {
           objects,
           background,
+          groundPlane,
           cameraState: liveCam,
           settings: settingsSnapshot,
           hdris: latestHdriList,
@@ -585,10 +589,22 @@ export const RenderModal: React.FC<RenderModalProps> = ({
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
             <input
               type="checkbox"
-              checked={renderSettings.groundPlaneEnabled}
-              onChange={(e) => setRenderSettings({ groundPlaneEnabled: e.target.checked })}
+              checked={groundPlane.visible && groundPlane.type !== 'none'}
+              disabled={groundPlane.type === 'none'}
+              onChange={(e) => {
+                setGroundPlane({ visible: e.target.checked });
+                setRenderSettings({ groundPlaneEnabled: e.target.checked });
+              }}
             />
-            Ground Shadows
+            Ground Plane (
+            {groundPlane.type === 'none'
+              ? 'None'
+              : groundPlane.type === 'shadow-catcher'
+              ? 'Shadow Catcher'
+              : groundPlane.type === 'color'
+              ? 'Solid Colour'
+              : 'Image Texture'}
+            )
           </label>
         </div>
 

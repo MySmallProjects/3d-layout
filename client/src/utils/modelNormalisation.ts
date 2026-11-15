@@ -88,14 +88,20 @@ export function toAppliedNormalisation(
 }
 
 /**
- * Wraps a cloned GLTF root group so `pivotOffset` is applied before `scaleFactor`,
- * matching the viewport's nested normalisation group hierarchy.
+ * Wraps a cloned GLTF root group inside an outer instance group so callers can
+ * freely set `wrapped.position / rotation / scale` on the outer group without
+ * overwriting the inner `scaleFactor` or `pivotOffset` normalisation groups.
+ * Matches the viewport's `<group position/rotation/scale><group scale><group position>` hierarchy.
  */
 export function wrapWithAppliedNormalisation(
   clone: THREE.Group,
   applied?: AppliedNormalisation | null
 ): THREE.Group {
-  if (!applied) return clone;
+  const instanceGroup = new THREE.Group();
+  if (!applied) {
+    instanceGroup.add(clone);
+    return instanceGroup;
+  }
 
   const scaleGroup = new THREE.Group();
   scaleGroup.scale.setScalar(applied.scaleFactor);
@@ -105,5 +111,6 @@ export function wrapWithAppliedNormalisation(
   pivotGroup.add(clone);
 
   scaleGroup.add(pivotGroup);
-  return scaleGroup;
+  instanceGroup.add(scaleGroup);
+  return instanceGroup;
 }

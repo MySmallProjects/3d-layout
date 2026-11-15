@@ -1,4 +1,4 @@
-import type { CameraBookmark, SceneData, SceneObject } from '@shared/types/scene';
+import type { CameraBookmark, GroundPlaneConfig, GroundPlaneType, SceneData, SceneObject } from '@shared/types/scene';
 import { useSceneStore } from '../store/sceneStore';
 
 export function captureLiveSceneData(): SceneData {
@@ -140,6 +140,25 @@ export function validateAndNormalizeSceneJson(
       };
     });
 
+  const rawGround = (obj.groundPlane && typeof obj.groundPlane === 'object' ? obj.groundPlane : {}) as Record<
+    string,
+    unknown
+  >;
+  const validGroundTypes: GroundPlaneType[] = ['none', 'shadow-catcher', 'color', 'image'];
+  const groundType: GroundPlaneType = validGroundTypes.includes(rawGround.type as GroundPlaneType)
+    ? (rawGround.type as GroundPlaneType)
+    : 'shadow-catcher';
+  const groundPlane: GroundPlaneConfig = {
+    type: groundType,
+    visible: typeof rawGround.visible === 'boolean' ? rawGround.visible : true,
+    size: typeof rawGround.size === 'number' && Number.isFinite(rawGround.size) ? Math.max(1, Math.min(500, rawGround.size)) : 100,
+    color: typeof rawGround.color === 'string' ? rawGround.color : '#22252e',
+    ...(typeof rawGround.imagePath === 'string' && rawGround.imagePath ? { imagePath: rawGround.imagePath } : {}),
+    textureRepeat: typeof rawGround.textureRepeat === 'number' && Number.isFinite(rawGround.textureRepeat)
+      ? Math.max(1, Math.min(50, rawGround.textureRepeat))
+      : 1,
+  };
+
   const data: SceneData = {
     schemaVersion: typeof obj.schemaVersion === 'number' ? obj.schemaVersion : 1,
     objects,
@@ -157,10 +176,7 @@ export function validateAndNormalizeSceneJson(
       obj.renderSettings && typeof obj.renderSettings === 'object'
         ? (obj.renderSettings as Record<string, unknown>)
         : {},
-    groundPlane:
-      obj.groundPlane && typeof obj.groundPlane === 'object'
-        ? (obj.groundPlane as Record<string, unknown>)
-        : {},
+    groundPlane,
     cameraBookmarks,
   };
 

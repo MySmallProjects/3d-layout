@@ -7,12 +7,18 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js';
 import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
-import type { BackgroundConfig, CameraState, SceneObject } from '@shared/types/scene';
+import type {
+  BackgroundConfig,
+  CameraState,
+  GroundPlaneConfig,
+  SceneObject,
+} from '@shared/types/scene';
 import type { HdriRecord } from '@shared/types/lighting';
 import type { RenderSettings, ToneMappingMode } from '@shared/types/render';
 import { sphericalToCartesian } from '../constants/lightingPresets';
 import { wrapWithAppliedNormalisation } from './modelNormalisation';
 import { isEffectivelyVisible } from './sceneHierarchy';
+import { createGroundPlaneMesh } from './groundPlaneThree';
 
 export function mapToneMapping(mode: ToneMappingMode): THREE.ToneMapping {
   switch (mode) {
@@ -60,6 +66,7 @@ export async function createThumbnailFromDataUrl(imageDataUrl: string, maxWidth 
 export interface OffscreenRenderInput {
   objects: SceneObject[];
   background: BackgroundConfig;
+  groundPlane?: GroundPlaneConfig;
   cameraState: CameraState;
   settings: RenderSettings;
   hdris: HdriRecord[];
@@ -77,7 +84,7 @@ export interface OffscreenRenderOutput {
 export async function renderSceneOffscreen(
   input: OffscreenRenderInput
 ): Promise<OffscreenRenderOutput> {
-  const { objects, background, cameraState, settings, hdris, signal, onProgress } = input;
+  const { objects, background, groundPlane, cameraState, settings, hdris, signal, onProgress } = input;
   const { width, height } = settings;
 
   onProgress?.(2, 'Initializing WebGL renderer...');
@@ -202,17 +209,9 @@ export async function renderSceneOffscreen(
     checkAbort(signal);
 
     // Optional Ground Plane
-    if (settings.groundPlaneEnabled) {
-      const groundGeo = new THREE.PlaneGeometry(100, 100);
-      const groundMat = settings.groundShadowOnly
-        ? new THREE.ShadowMaterial({ opacity: 0.45 })
-        : new THREE.MeshStandardMaterial({ color: settings.groundColor, roughness: 0.9, metalness: 0.0 });
-      const ground = new THREE.Mesh(groundGeo, groundMat);
-      ground.rotation.x = -Math.PI / 2;
-      ground.position.y = -0.001;
-      ground.receiveShadow = true;
+    const ground = await createGroundPlaneMesh(groundPlane, settings, false, disposables);
+    if (ground) {
       scene.add(ground);
-      disposables.push(groundGeo, groundMat);
     }
 
     // Load visible scene objects (cache GLTF per modelId) and preserve group hierarchy

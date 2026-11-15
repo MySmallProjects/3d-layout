@@ -185,6 +185,13 @@ async function runTests() {
     camera: { position: [5, 5, 5] as [number, number, number], target: [0, 0, 0] as [number, number, number] },
     lighting: {},
     renderSettings: {},
+    groundPlane: {
+      type: 'color' as const,
+      visible: true,
+      size: 50,
+      color: '#334155',
+      textureRepeat: 2,
+    },
     cameraBookmarks: [
       {
         id: 'cam_test_1',
@@ -362,6 +369,17 @@ async function runTests() {
     getScene(bScene.id)?.data.objects.find((o) => o.id === 'obj_test_child_1')?.parentId,
     'grp_test_1',
     'Group parentId hierarchy restored identically in scene backup'
+  );
+  assert.deepStrictEqual(
+    getScene(bScene.id)?.data.groundPlane,
+    {
+      type: 'color',
+      visible: true,
+      size: 50,
+      color: '#334155',
+      textureRepeat: 2,
+    },
+    'Ground plane config restored identically in scene backup'
   );
   assert(
     fs.readFileSync(path.join(DATA_DIR, bModelPath), 'utf-8') === 'glTF-backup-payload',
