@@ -161,10 +161,12 @@ export const Viewport: React.FC = () => {
         <SnapToFloorController />
         <CaptureController />
 
-        {/* Render all scene instances */}
-        {objects.map((obj) => (
-          <SceneObjectRenderer key={obj.id} object={obj} />
-        ))}
+        {/* Render root scene instances (nested children render inside parent groups) */}
+        {objects
+          .filter((obj) => !obj.parentId || !objects.some((p) => p.id === obj.parentId))
+          .map((obj) => (
+            <SceneObjectRenderer key={obj.id} object={obj} />
+          ))}
       </Canvas>
     </div>
   );

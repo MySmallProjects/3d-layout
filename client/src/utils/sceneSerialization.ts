@@ -64,11 +64,17 @@ export function validateAndNormalizeSceneJson(
       throw new Error(`Invalid object entry at index ${idx}.`);
     }
     const rec = item as Record<string, unknown>;
-    const modelId = typeof rec.modelId === 'string' && rec.modelId.trim() ? rec.modelId : '';
+    const isGroup = rec.isGroup === true || rec.modelId === '__group__';
+    const modelId =
+      typeof rec.modelId === 'string' && rec.modelId.trim()
+        ? rec.modelId
+        : isGroup
+          ? '__group__'
+          : '';
     if (!modelId) {
       throw new Error(`Object at index ${idx} is missing a valid "modelId".`);
     }
-    if (!knownModelIds.has(modelId)) {
+    if (!isGroup && !knownModelIds.has(modelId)) {
       missingModels.add(modelId);
     }
 
@@ -98,6 +104,7 @@ export function validateAndNormalizeSceneJson(
       visible: typeof rec.visible === 'boolean' ? rec.visible : true,
       locked: typeof rec.locked === 'boolean' ? rec.locked : false,
       parentId: typeof rec.parentId === 'string' ? rec.parentId : null,
+      ...(isGroup ? { isGroup: true } : {}),
       ...(appliedNormalisation ? { appliedNormalisation } : {}),
     };
   });

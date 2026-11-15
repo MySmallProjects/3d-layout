@@ -1,5 +1,20 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Unlock, Box, Copy, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import {
+  AlertTriangle,
+  Box,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Edit2,
+  Eye,
+  EyeOff,
+  Folder,
+  FolderOpen,
+  Lock,
+  Trash2,
+  Ungroup,
+  Unlock,
+} from 'lucide-react';
 import { SceneObject, LibraryModel } from '../../types';
 import { useSceneStore } from '../../store/sceneStore';
 import { ContextMenu, ContextMenuItem } from '../library/ContextMenu';
@@ -7,12 +22,20 @@ import { ContextMenu, ContextMenuItem } from '../library/ContextMenu';
 interface SceneObjectRowProps {
   object: SceneObject;
   model?: LibraryModel;
+  depth?: number;
+  hasChildren?: boolean;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
   onRename: (object: SceneObject) => void;
 }
 
 export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
   object,
   model,
+  depth = 0,
+  hasChildren = false,
+  isExpanded = true,
+  onToggleExpand,
   onRename
 }) => {
   const {
@@ -22,6 +45,8 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
     toggleLock,
     duplicateObject,
     deleteObjects,
+    groupSelected,
+    ungroupSelected,
     triggerFocus
   } = useSceneStore();
 
@@ -59,11 +84,36 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
       icon: <Edit2 size={13} />,
       onClick: () => onRename(object)
     },
-    {
-      label: 'Duplicate (Ctrl+D)',
-      icon: <Copy size={13} />,
-      onClick: () => duplicateObject(object.id)
-    },
+    ...(object.isGroup
+      ? [
+          {
+            label: 'Ungroup (Ctrl+Shift+G)',
+            icon: <Ungroup size={13} />,
+            onClick: () => {
+              selectObject(object.id, false);
+              ungroupSelected();
+            }
+          }
+        ]
+      : [
+          {
+            label: 'Group Selected (Ctrl+G)',
+            icon: <Folder size={13} />,
+            onClick: () => {
+              if (!isSelected) selectObject(object.id, false);
+              groupSelected();
+            }
+          }
+        ]),
+    ...(!object.isGroup
+      ? [
+          {
+            label: 'Duplicate (Ctrl+D)',
+            icon: <Copy size={13} />,
+            onClick: () => duplicateObject(object.id)
+          }
+        ]
+      : []),
     {
       label: 'Delete (Delete)',
       icon: <Trash2 size={13} />,
@@ -85,8 +135,8 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          padding: '6px 10px',
+          gap: '6px',
+          padding: `6px 10px 6px ${10 + depth * 16}px`,
           fontSize: '12px',
           cursor: 'pointer',
           borderRadius: '4px',
@@ -102,7 +152,26 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
           if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
         }}
       >
-        {/* Model thumbnail preview */}
+        {(object.isGroup || hasChildren) && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand?.();
+            }}
+            title={isExpanded ? 'Collapse group' : 'Expand group'}
+            style={{
+              padding: '2px',
+              display: 'flex',
+              color: 'var(--text-muted)',
+              flexShrink: 0,
+            }}
+          >
+            {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </button>
+        )}
+
+        {/* Model thumbnail or Group icon */}
         <div
           style={{
             width: '24px',
@@ -116,7 +185,9 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
             flexShrink: 0
           }}
         >
-          {thumbnailUrl ? (
+          {object.isGroup ? (
+            isExpanded ? <FolderOpen size={14} color="var(--accent)" /> : <Folder size={14} color="var(--accent)" />
+          ) : thumbnailUrl ? (
             <img src={thumbnailUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           ) : (
             <Box size={14} color="var(--text-muted)" />
@@ -126,7 +197,7 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
         {/* Object Name */}
         <span
           title={
-            !model
+            !object.isGroup && !model
               ? `${object.name} — Missing library model (${object.modelId})`
               : object.name
           }
@@ -135,14 +206,14 @@ export const SceneObjectRow: React.FC<SceneObjectRowProps> = ({
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            color: !model ? '#fbbf24' : isSelected ? 'var(--text-main)' : 'var(--text-muted)',
-            fontWeight: isSelected ? 500 : 400
+            color: !object.isGroup && !model ? '#fbbf24' : isSelected ? 'var(--text-main)' : 'var(--text-muted)',
+            fontWeight: isSelected || object.isGroup ? 500 : 400
           }}
         >
           {object.name}
         </span>
 
-        {!model && (
+        {!object.isGroup && !model && (
           <span
             title="Model missing from library"
             style={{ display: 'inline-flex', alignItems: 'center', color: '#fbbf24', flexShrink: 0 }}

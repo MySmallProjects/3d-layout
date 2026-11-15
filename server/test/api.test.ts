@@ -155,7 +155,31 @@ async function runTests() {
 
   const sampleSceneData = {
     schemaVersion: 1,
-    objects: [],
+    objects: [
+      {
+        id: 'grp_test_1',
+        modelId: '__group__',
+        name: 'Group 1',
+        position: [1, 0, 1] as [number, number, number],
+        rotation: [0, 0.5, 0] as [number, number, number],
+        scale: [1, 1, 1] as [number, number, number],
+        visible: true,
+        locked: false,
+        parentId: null,
+        isGroup: true,
+      },
+      {
+        id: 'obj_test_child_1',
+        modelId: 'missing_model_for_schema_test',
+        name: 'Grouped Item',
+        position: [0.5, 0, 0] as [number, number, number],
+        rotation: [0, 0, 0] as [number, number, number],
+        scale: [1, 1, 1] as [number, number, number],
+        visible: true,
+        locked: false,
+        parentId: 'grp_test_1',
+      },
+    ],
     gridVisible: true,
     background: { type: 'none' as const },
     camera: { position: [5, 5, 5] as [number, number, number], target: [0, 0, 0] as [number, number, number] },
@@ -333,6 +357,11 @@ async function runTests() {
     getScene(bScene.id)?.data.cameraBookmarks?.[0]?.name,
     'Front Hero',
     'Camera bookmarks restored identically in scene backup'
+  );
+  assert.strictEqual(
+    getScene(bScene.id)?.data.objects.find((o) => o.id === 'obj_test_child_1')?.parentId,
+    'grp_test_1',
+    'Group parentId hierarchy restored identically in scene backup'
   );
   assert(
     fs.readFileSync(path.join(DATA_DIR, bModelPath), 'utf-8') === 'glTF-backup-payload',

@@ -13,6 +13,7 @@ export interface SceneObject {
   visible: boolean;
   locked: boolean;
   parentId: string | null;
+  isGroup?: boolean;
   /** Snapshot of model normalisation applied when this instance was added; omitted for legacy scenes. */
   appliedNormalisation?: AppliedNormalisation | null;
 }

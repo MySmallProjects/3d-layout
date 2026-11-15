@@ -301,6 +301,14 @@ export const App: React.FC = () => {
           e.preventDefault();
           handleSaveScene();
           break;
+        case 'group':
+          e.preventDefault();
+          sceneState.groupSelected();
+          break;
+        case 'ungroup':
+          e.preventDefault();
+          sceneState.ungroupSelected();
+          break;
       }
     };
 

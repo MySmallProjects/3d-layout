@@ -18,12 +18,18 @@ interface SceneObjectRendererProps {
 
 export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object }) => {
   const {
+    objects,
     selectedObjectIds,
     hoveredObjectId,
     selectObject,
     setHoveredObjectId
   } = useSceneStore();
   const { showToast } = useLibraryStore();
+
+  const childObjects = useMemo(
+    () => objects.filter((o) => o.parentId === object.id),
+    [objects, object.id]
+  );
 
   const [modelGroup, setModelGroup] = useState<THREE.Group | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -53,6 +59,13 @@ export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object
   }, [modelGroup, isNegativeDet]);
 
   useEffect(() => {
+    if (object.isGroup) {
+      setModelGroup(null);
+      setIsLoading(false);
+      setLoadError(null);
+      return;
+    }
+
     let isCancelled = false;
     const fileUrl = `/api/models/${object.modelId}/file`;
 
@@ -96,7 +109,7 @@ export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object
     return () => {
       isCancelled = true;
     };
-  }, [object.modelId, object.name, showToast]);
+  }, [object.isGroup, object.modelId, object.name, showToast]);
 
   const appliedNorm = object.appliedNormalisation ?? null;
 
@@ -217,6 +230,11 @@ export const SceneObjectRenderer: React.FC<SceneObjectRendererProps> = ({ object
           />
         </lineSegments>
       )}
+
+      {/* Nested child objects / sub-groups */}
+      {childObjects.map((child) => (
+        <SceneObjectRenderer key={child.id} object={child} />
+      ))}
     </group>
   );
 };

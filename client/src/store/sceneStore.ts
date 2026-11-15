@@ -1,9 +1,18 @@
 import { create } from 'zustand';
+import * as THREE from 'three';
 import { SceneObject, BackgroundConfig } from '../types';
 import type { AppliedNormalisation, CameraBookmark, CameraState, SceneData } from '@shared/types/scene';
 import type { LightingConfig } from '@shared/types/lighting';
 import type { RenderSettings } from '@shared/types/render';
 import { DEFAULT_LIGHTING_CONFIG, DEFAULT_RENDER_SETTINGS } from '../constants/lightingPresets';
+import {
+  composeLocalMatrix,
+  decomposeMatrixToTransform,
+  filterTopLevelSelected,
+  getDescendantIds,
+  getParentWorldMatrix,
+  getWorldMatrix,
+} from '../utils/sceneHierarchy';
 
 export type TransformMode = 'translate' | 'rotate' | 'scale';
 
@@ -68,6 +77,8 @@ interface SceneState {
   duplicateObject: (id: string) => SceneObject | null;
   duplicateSelected: () => void;
   deleteObjects: (ids: string[]) => void;
+  groupSelected: () => SceneObject | null;
+  ungroupSelected: () => void;
   toggleGrid: () => void;
   setGridVisible: (visible: boolean) => void;
   setBackground: (config: BackgroundConfig) => void;
@@ -376,6 +387,11 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     if (ids.length === 0) return;
     const { objects, past, selectedObjectIds, hoveredObjectId } = get();
     const idSet = new Set(ids);
+    for (const id of ids) {
+      for (const descId of getDescendantIds(id, objects)) {
+        idSet.add(descId);
+      }
+    }
     const remaining = objects.filter((o) => !idSet.has(o.id));
     if (remaining.length === objects.length) return;
 
@@ -386,6 +402,129 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       selectedObjectIds: selectedObjectIds.filter((id) => !idSet.has(id)),
       hoveredObjectId: idSet.has(hoveredObjectId || '') ? null : hoveredObjectId,
       isDirty: true
+    });
+  },
+
+  groupSelected: () => {
+    const { objects, selectedObjectIds, past } = get();
+    const targets = filterTopLevelSelected(selectedObjectIds, objects);
+    if (targets.length === 0) return null;
+
+    const firstParent = targets[0].parentId ?? null;
+    const commonParentId = targets.every((t) => (t.parentId ?? null) === firstParent)
+      ? firstParent
+      : null;
+
+    const commonParentWorldInv = getParentWorldMatrix(commonParentId, objects).invert();
+    const localInCommon = new Map<string, THREE.Matrix4>();
+    const centroid = new THREE.Vector3();
+
+    for (const t of targets) {
+      const mat = new THREE.Matrix4().multiplyMatrices(
+        commonParentWorldInv,
+        getWorldMatrix(t, objects)
+      );
+      localInCommon.set(t.id, mat);
+      const pos = new THREE.Vector3().setFromMatrixPosition(mat);
+      centroid.add(pos);
+    }
+    centroid.divideScalar(targets.length);
+
+    const groupCount = objects.filter((o) => o.isGroup).length + 1;
+    const groupId = `grp_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const groupObj: SceneObject = {
+      id: groupId,
+      modelId: '__group__',
+      name: `Group ${groupCount}`,
+      position: [centroid.x, centroid.y, centroid.z],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+      visible: true,
+      locked: false,
+      parentId: commonParentId,
+      isGroup: true,
+    };
+
+    const groupLocalInv = new THREE.Matrix4().makeTranslation(-centroid.x, -centroid.y, -centroid.z);
+    const updatedObjects = objects.map((o) => {
+      const mat = localInCommon.get(o.id);
+      if (!mat) return o;
+      const relativeMat = new THREE.Matrix4().multiplyMatrices(groupLocalInv, mat);
+      const tf = decomposeMatrixToTransform(relativeMat);
+      return {
+        ...o,
+        parentId: groupId,
+        position: tf.position,
+        rotation: tf.rotation,
+        scale: tf.scale,
+      };
+    });
+
+    set({
+      past: pushPast(past, objects),
+      future: [],
+      objects: [...updatedObjects, groupObj],
+      selectedObjectIds: [groupId],
+      isDirty: true,
+    });
+    return groupObj;
+  },
+
+  ungroupSelected: () => {
+    const { objects, selectedObjectIds, past } = get();
+    if (selectedObjectIds.length === 0) return;
+
+    let groupIdsToUngroup = objects
+      .filter((o) => o.isGroup && selectedObjectIds.includes(o.id) && !o.locked)
+      .map((o) => o.id);
+
+    // If user selected child object(s) inside a group, ungroup their parent group(s)
+    if (groupIdsToUngroup.length === 0) {
+      const parentGroupIds = new Set<string>();
+      for (const id of selectedObjectIds) {
+        const obj = objects.find((o) => o.id === id);
+        if (obj?.parentId) {
+          const parent = objects.find((p) => p.id === obj.parentId && p.isGroup && !p.locked);
+          if (parent) parentGroupIds.add(parent.id);
+        }
+      }
+      groupIdsToUngroup = Array.from(parentGroupIds);
+    }
+
+    if (groupIdsToUngroup.length === 0) return;
+
+    let currentObjects = cloneObjects(objects);
+    const nextSelected = new Set<string>();
+
+    for (const gid of groupIdsToUngroup) {
+      const grp = currentObjects.find((o) => o.id === gid && o.isGroup);
+      if (!grp) continue;
+      const grpMatrix = composeLocalMatrix(grp);
+      const targetParentId = grp.parentId ?? null;
+
+      currentObjects = currentObjects
+        .filter((o) => o.id !== gid)
+        .map((o) => {
+          if (o.parentId !== gid) return o;
+          const baked = new THREE.Matrix4().multiplyMatrices(grpMatrix, composeLocalMatrix(o));
+          const tf = decomposeMatrixToTransform(baked);
+          nextSelected.add(o.id);
+          return {
+            ...o,
+            parentId: targetParentId,
+            position: tf.position,
+            rotation: tf.rotation,
+            scale: tf.scale,
+          };
+        });
+    }
+
+    set({
+      past: pushPast(past, objects),
+      future: [],
+      objects: currentObjects,
+      selectedObjectIds: Array.from(nextSelected),
+      isDirty: true,
     });
   },
 

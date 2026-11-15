@@ -2,6 +2,12 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSceneStore } from '../../store/sceneStore';
+import {
+  decomposeMatrixToTransform,
+  filterTopLevelSelected,
+  getParentWorldMatrix,
+  getWorldMatrix,
+} from '../../utils/sceneHierarchy';
 
 interface InitialObjectTransform {
   id: string;
@@ -34,36 +40,38 @@ export const TransformGizmo: React.FC = () => {
   } | null>(null);
 
   const selectedObjects = useMemo(
-    () => objects.filter((o) => selectedObjectIds.includes(o.id) && !o.locked),
+    () => filterTopLevelSelected(selectedObjectIds, objects),
     [objects, selectedObjectIds]
   );
 
-  // Calculate selection center
+  // Calculate selection center in world space
   const selectionCenter = useMemo(() => {
     if (selectedObjects.length === 0) return new THREE.Vector3();
     const sum = new THREE.Vector3();
     for (const obj of selectedObjects) {
-      sum.add(new THREE.Vector3(...obj.position));
+      const worldPos = new THREE.Vector3().setFromMatrixPosition(getWorldMatrix(obj, objects));
+      sum.add(worldPos);
     }
     return sum.divideScalar(selectedObjects.length);
-  }, [selectedObjects]);
+  }, [selectedObjects, objects]);
 
-  // Sync pivot position/rotation/scale when selection or external transform changes (and not dragging)
+  // Sync pivot position/rotation/scale in world space when selection or external transform changes
   useEffect(() => {
     if (!pivotRef.current || isGizmoDragging || selectedObjects.length === 0) return;
 
     if (selectedObjects.length === 1) {
       const target = selectedObjects[0];
-      pivotRef.current.position.set(...target.position);
-      pivotRef.current.rotation.set(...target.rotation);
-      pivotRef.current.scale.set(...target.scale);
+      const tf = decomposeMatrixToTransform(getWorldMatrix(target, objects));
+      pivotRef.current.position.set(...tf.position);
+      pivotRef.current.rotation.set(...tf.rotation);
+      pivotRef.current.scale.set(...tf.scale);
     } else {
       pivotRef.current.position.copy(selectionCenter);
       pivotRef.current.rotation.set(0, 0, 0);
       pivotRef.current.scale.set(1, 1, 1);
     }
     pivotRef.current.updateMatrixWorld();
-  }, [selectedObjects, selectionCenter, isGizmoDragging]);
+  }, [selectedObjects, objects, selectionCenter, isGizmoDragging]);
 
   // Attach dragging-changed listener to ensure OrbitControls disables properly
   useEffect(() => {
@@ -80,11 +88,7 @@ export const TransformGizmo: React.FC = () => {
           pivotRef.current.updateMatrixWorld();
           const pivotInverse = pivotRef.current.matrixWorld.clone().invert();
           const initialObjects: InitialObjectTransform[] = selectedObjects.map((o) => {
-            const pos = new THREE.Vector3(...o.position);
-            const euler = new THREE.Euler(...o.rotation);
-            const quat = new THREE.Quaternion().setFromEuler(euler);
-            const scl = new THREE.Vector3(...o.scale);
-            const matrix = new THREE.Matrix4().compose(pos, quat, scl);
+            const matrix = getWorldMatrix(o, objects);
             const wasNegativeDet = o.scale[0] * o.scale[1] * o.scale[2] < 0;
             return { id: o.id, matrix, wasNegativeDet };
           });
@@ -109,14 +113,18 @@ export const TransformGizmo: React.FC = () => {
 
     if (selectedObjects.length === 1) {
       const target = selectedObjects[0];
-      const p = pivotRef.current.position;
-      const r = pivotRef.current.rotation;
-      const s = pivotRef.current.scale;
+      pivotRef.current.updateMatrixWorld();
+      const parentWorldInv = getParentWorldMatrix(target.parentId, objects).invert();
+      const localMat = new THREE.Matrix4().multiplyMatrices(
+        parentWorldInv,
+        pivotRef.current.matrixWorld
+      );
+      const tf = decomposeMatrixToTransform(localMat);
 
       updateObjectTransform(target.id, {
-        position: [p.x, p.y, p.z],
-        rotation: [r.x, r.y, r.z],
-        scale: [s.x, s.y, s.z]
+        position: tf.position,
+        rotation: tf.rotation,
+        scale: tf.scale
       });
     } else if (dragStartRef.current?.isMulti) {
       pivotRef.current.updateMatrixWorld();
@@ -126,18 +134,17 @@ export const TransformGizmo: React.FC = () => {
       );
 
       const updates = dragStartRef.current.initialObjects.map((item) => {
-        const newMatrix = new THREE.Matrix4().multiplyMatrices(deltaMatrix, item.matrix);
-        const newPos = new THREE.Vector3();
-        const newQuat = new THREE.Quaternion();
-        const newScale = new THREE.Vector3();
-        newMatrix.decompose(newPos, newQuat, newScale);
-        const newEuler = new THREE.Euler().setFromQuaternion(newQuat);
+        const obj = objects.find((o) => o.id === item.id);
+        const parentWorldInv = getParentWorldMatrix(obj?.parentId ?? null, objects).invert();
+        const newWorldMatrix = new THREE.Matrix4().multiplyMatrices(deltaMatrix, item.matrix);
+        const newLocalMatrix = new THREE.Matrix4().multiplyMatrices(parentWorldInv, newWorldMatrix);
+        const tf = decomposeMatrixToTransform(newLocalMatrix);
 
         return {
           id: item.id,
-          position: [newPos.x, newPos.y, newPos.z] as [number, number, number],
-          rotation: [newEuler.x, newEuler.y, newEuler.z] as [number, number, number],
-          scale: [newScale.x, newScale.y, newScale.z] as [number, number, number]
+          position: tf.position,
+          rotation: tf.rotation,
+          scale: tf.scale
         };
       });
 

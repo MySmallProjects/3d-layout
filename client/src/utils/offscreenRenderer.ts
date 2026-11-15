@@ -12,6 +12,7 @@ import type { HdriRecord } from '@shared/types/lighting';
 import type { RenderSettings, ToneMappingMode } from '@shared/types/render';
 import { sphericalToCartesian } from '../constants/lightingPresets';
 import { wrapWithAppliedNormalisation } from './modelNormalisation';
+import { isEffectivelyVisible } from './sceneHierarchy';
 
 export function mapToneMapping(mode: ToneMappingMode): THREE.ToneMapping {
   switch (mode) {
@@ -214,16 +215,26 @@ export async function renderSceneOffscreen(
       disposables.push(groundGeo, groundMat);
     }
 
-    // Load visible scene objects (cache GLTF per modelId)
-    const visibleObjects = objects.filter((o) => o.visible);
+    // Load visible scene objects (cache GLTF per modelId) and preserve group hierarchy
+    const visibleObjects = objects.filter((o) => isEffectivelyVisible(o, objects));
     const gltfLoader = await createConfiguredGLTFLoader();
     const modelCache = new Map<string, THREE.Group>();
+    const nodeMap = new Map<string, THREE.Object3D>();
 
     for (let i = 0; i < visibleObjects.length; i++) {
       checkAbort(signal);
       const obj = visibleObjects[i];
       const pct = 20 + Math.round(((i + 1) / Math.max(1, visibleObjects.length)) * 30);
       onProgress?.(pct, `Loading models (${i + 1}/${visibleObjects.length})...`);
+
+      if (obj.isGroup) {
+        const grp = new THREE.Group();
+        grp.position.set(...obj.position);
+        grp.rotation.set(...obj.rotation);
+        grp.scale.set(...obj.scale);
+        nodeMap.set(obj.id, grp);
+        continue;
+      }
 
       let baseGroup = modelCache.get(obj.modelId);
       if (!baseGroup) {
@@ -258,7 +269,14 @@ export async function renderSceneOffscreen(
       wrapped.position.set(...obj.position);
       wrapped.rotation.set(...obj.rotation);
       wrapped.scale.set(...obj.scale);
-      scene.add(wrapped);
+      nodeMap.set(obj.id, wrapped);
+    }
+
+    for (const obj of visibleObjects) {
+      const node = nodeMap.get(obj.id);
+      if (!node) continue;
+      const parent = obj.parentId ? nodeMap.get(obj.parentId) : undefined;
+      (parent ?? scene).add(node);
     }
 
     checkAbort(signal);

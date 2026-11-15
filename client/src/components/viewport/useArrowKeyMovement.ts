@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSceneStore } from '../../store/sceneStore';
+import { filterTopLevelSelected, getParentWorldMatrix } from '../../utils/sceneHierarchy';
 
 export const ArrowKeyController = () => {
   const { camera } = useThree();
@@ -20,9 +21,7 @@ export const ArrowKeyController = () => {
       if (!relevantKeys.includes(e.key)) return;
 
       const state = useSceneStore.getState();
-      const selected = state.objects.filter(
-        (o) => state.selectedObjectIds.includes(o.id) && !o.locked
-      );
+      const selected = filterTopLevelSelected(state.selectedObjectIds, state.objects);
       if (selected.length === 0) return;
 
       e.preventDefault();
@@ -69,15 +68,22 @@ export const ArrowKeyController = () => {
       // Begin transaction on first key of burst
       state.beginTransaction();
 
-      // Apply movement to all selected unlocked objects
-      const updates = selected.map((o) => ({
-        id: o.id,
-        position: [
-          parseFloat((o.position[0] + delta.x).toFixed(4)),
-          parseFloat((o.position[1] + delta.y).toFixed(4)),
-          parseFloat((o.position[2] + delta.z).toFixed(4))
-        ] as [number, number, number]
-      }));
+      // Apply movement in world space, converted to each object's parent space
+      const updates = selected.map((o) => {
+        const localDelta = o.parentId
+          ? delta.clone().applyMatrix4(
+              getParentWorldMatrix(o.parentId, state.objects).invert().setPosition(0, 0, 0)
+            )
+          : delta;
+        return {
+          id: o.id,
+          position: [
+            parseFloat((o.position[0] + localDelta.x).toFixed(4)),
+            parseFloat((o.position[1] + localDelta.y).toFixed(4)),
+            parseFloat((o.position[2] + localDelta.z).toFixed(4))
+          ] as [number, number, number]
+        };
+      });
       state.updateMultipleTransforms(updates);
 
       // Debounce commit for single undo step per key burst

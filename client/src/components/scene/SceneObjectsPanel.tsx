@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Trash2, XCircle } from 'lucide-react';
+import { FolderPlus, Layers, Trash2, Ungroup, XCircle } from 'lucide-react';
 import { useSceneStore } from '../../store/sceneStore';
 import { useLibraryStore } from '../../store/libraryStore';
 import { SceneObject } from '../../types';
@@ -9,11 +9,52 @@ import { CameraBookmarksPanel } from './CameraBookmarksPanel';
 import { Modal } from '../common/Modal';
 
 export const SceneObjectsPanel: React.FC = () => {
-  const { objects, selectedObjectIds, deselectAll, deleteObjects, renameObject } = useSceneStore();
+  const {
+    objects,
+    selectedObjectIds,
+    deselectAll,
+    deleteObjects,
+    renameObject,
+    groupSelected,
+    ungroupSelected,
+  } = useSceneStore();
   const { models } = useLibraryStore();
 
   const [renameTarget, setRenameTarget] = useState<SceneObject | null>(null);
   const [renameInput, setRenameInput] = useState('');
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const idSet = new Set(objects.map((o) => o.id));
+  const rootObjects = objects.filter((o) => !o.parentId || !idSet.has(o.parentId));
+  const canUngroup = selectedObjectIds.some((id) => {
+    const obj = objects.find((o) => o.id === id);
+    return Boolean(obj && (obj.isGroup || (obj.parentId && idSet.has(obj.parentId))));
+  });
+
+  const renderTree = (nodes: SceneObject[], depth: number): React.ReactNode =>
+    nodes.map((obj) => {
+      const children = objects.filter((o) => o.parentId === obj.id);
+      const isExpanded = !collapsedGroups[obj.id];
+      return (
+        <React.Fragment key={obj.id}>
+          <SceneObjectRow
+            object={obj}
+            model={obj.isGroup ? undefined : models.find((m) => m.id === obj.modelId)}
+            depth={depth}
+            hasChildren={children.length > 0}
+            isExpanded={isExpanded}
+            onToggleExpand={() =>
+              setCollapsedGroups((prev) => ({ ...prev, [obj.id]: !prev[obj.id] }))
+            }
+            onRename={(target) => {
+              setRenameTarget(target);
+              setRenameInput(target.name);
+            }}
+          />
+          {children.length > 0 && isExpanded && renderTree(children, depth + 1)}
+        </React.Fragment>
+      );
+    });
 
   const handleRenameSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +100,32 @@ export const SceneObjectsPanel: React.FC = () => {
 
         {selectedObjectIds.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              onClick={() => groupSelected()}
+              title="Group selected (Ctrl+G)"
+              style={{
+                color: 'var(--text-muted)',
+                padding: '2px',
+                borderRadius: '3px',
+                display: 'flex'
+              }}
+            >
+              <FolderPlus size={14} />
+            </button>
+            {canUngroup && (
+              <button
+                onClick={() => ungroupSelected()}
+                title="Ungroup (Ctrl+Shift+G)"
+                style={{
+                  color: 'var(--text-muted)',
+                  padding: '2px',
+                  borderRadius: '3px',
+                  display: 'flex'
+                }}
+              >
+                <Ungroup size={14} />
+              </button>
+            )}
             <button
               onClick={deselectAll}
               title="Deselect all (Esc)"
@@ -109,17 +176,7 @@ export const SceneObjectsPanel: React.FC = () => {
             </div>
           </div>
         ) : (
-          objects.map((obj) => (
-            <SceneObjectRow
-              key={obj.id}
-              object={obj}
-              model={models.find((m) => m.id === obj.modelId)}
-              onRename={(target) => {
-                setRenameTarget(target);
-                setRenameInput(target.name);
-              }}
-            />
-          ))
+          renderTree(rootObjects, 0)
         )}
       </div>
 

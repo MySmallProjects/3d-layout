@@ -116,8 +116,18 @@ export const SHORTCUTS: ShortcutCategory[] = [
         description: 'Save scene',
         match: (e) => (e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === 's' || e.key === 'S'),
       },
-      { id: 'group', key: 'Ctrl + G', description: 'Group selected (Phase 7)' },
-      { id: 'ungroup', key: 'Ctrl + Shift + G', description: 'Ungroup selected (Phase 7)' }
+      {
+        id: 'group',
+        key: 'Ctrl + G',
+        description: 'Group selected objects',
+        match: (e) => (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'g' || e.key === 'G'),
+      },
+      {
+        id: 'ungroup',
+        key: 'Ctrl + Shift + G',
+        description: 'Ungroup selected group',
+        match: (e) => (e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && (e.key === 'g' || e.key === 'G'),
+      }
     ]
   },
   {
