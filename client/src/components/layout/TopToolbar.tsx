@@ -21,7 +21,8 @@ import {
   FileUp,
   ChevronDown,
   Sun,
-  Images
+  Images,
+  ArrowDownToLine
 } from 'lucide-react';
 import { useSceneStore } from '../../store/sceneStore';
 import { BackgroundModal } from '../scene/BackgroundModal';
@@ -456,9 +457,40 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
                     }}
                   />
                 </div>
+
+                {/* Surface Snap */}
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={snap.surfaceSnapEnabled}
+                      onChange={(e) => updateSnap({ surfaceSnapEnabled: e.target.checked })}
+                    />
+                    <span>Snap to Surface</span>
+                  </label>
+                </div>
               </div>
             )}
           </div>
+
+          <button
+            onClick={() => updateSnap({ surfaceSnapEnabled: !snap.surfaceSnapEnabled })}
+            title="Snap to Surface: place & move objects on top of other objects"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              backgroundColor: snap.surfaceSnapEnabled ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+              color: snap.surfaceSnapEnabled ? 'var(--accent)' : 'var(--text-muted)',
+              border: snap.surfaceSnapEnabled ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid transparent'
+            }}
+          >
+            <ArrowDownToLine size={14} />
+            <span>Surface</span>
+          </button>
 
           <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color)' }} />
 

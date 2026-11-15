@@ -3,9 +3,10 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useSceneStore } from '../../store/sceneStore';
 import { filterTopLevelSelected, getParentWorldMatrix } from '../../utils/sceneHierarchy';
+import { collectSurfaceTargetMeshes, computeDropDeltaY } from '../../utils/surfaceSnap';
 
 export const ArrowKeyController = () => {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   const burstTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -69,18 +70,44 @@ export const ArrowKeyController = () => {
       state.beginTransaction();
 
       // Apply movement in world space, converted to each object's parent space
+      const isHorizontalMove = e.key !== 'PageUp' && e.key !== 'PageDown';
+      const shouldSurfaceSnap = state.snap.surfaceSnapEnabled && isHorizontalMove;
+      const targetMeshes = shouldSurfaceSnap
+        ? collectSurfaceTargetMeshes(scene, state.objects, selected.map((s) => s.id))
+        : [];
+
       const updates = selected.map((o) => {
-        const localDelta = o.parentId
-          ? delta.clone().applyMatrix4(
-              getParentWorldMatrix(o.parentId, state.objects).invert().setPosition(0, 0, 0)
-            )
-          : delta;
+        const parentWorldInv = o.parentId
+          ? getParentWorldMatrix(o.parentId, state.objects).invert().setPosition(0, 0, 0)
+          : null;
+        const localDelta = parentWorldInv ? delta.clone().applyMatrix4(parentWorldInv) : delta;
+        const nextPos: [number, number, number] = [
+          o.position[0] + localDelta.x,
+          o.position[1] + localDelta.y,
+          o.position[2] + localDelta.z,
+        ];
+
+        if (shouldSurfaceSnap) {
+          const obj3d = scene.getObjectByName(`scene_obj_${o.id}`);
+          if (obj3d) {
+            obj3d.position.set(...nextPos);
+            const dy = computeDropDeltaY(obj3d, targetMeshes, 0.75);
+            if (dy !== null) {
+              const verticalLocal = new THREE.Vector3(0, dy, 0);
+              if (parentWorldInv) verticalLocal.applyMatrix4(parentWorldInv);
+              nextPos[0] += verticalLocal.x;
+              nextPos[1] += verticalLocal.y;
+              nextPos[2] += verticalLocal.z;
+            }
+          }
+        }
+
         return {
           id: o.id,
           position: [
-            parseFloat((o.position[0] + localDelta.x).toFixed(4)),
-            parseFloat((o.position[1] + localDelta.y).toFixed(4)),
-            parseFloat((o.position[2] + localDelta.z).toFixed(4))
+            parseFloat(nextPos[0].toFixed(4)),
+            parseFloat(nextPos[1].toFixed(4)),
+            parseFloat(nextPos[2].toFixed(4))
           ] as [number, number, number]
         };
       });
@@ -103,7 +130,7 @@ export const ArrowKeyController = () => {
         window.clearTimeout(burstTimerRef.current);
       }
     };
-  }, [camera]);
+  }, [camera, scene]);
 
   return null;
 };

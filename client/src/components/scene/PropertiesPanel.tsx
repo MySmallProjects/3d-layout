@@ -14,6 +14,7 @@ export const PropertiesPanel: React.FC = () => {
     updateObjectTransform,
     toggleMirror,
     triggerSnapToFloor,
+    triggerDropToSurface,
     duplicateSelected,
     deleteObjects,
     beginTransaction,
@@ -390,9 +391,10 @@ export const PropertiesPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Snap to Floor */}
+        {/* Drop onto Surface Below & Snap to Floor */}
         <button
-          onClick={triggerSnapToFloor}
+          onClick={triggerDropToSurface}
+          title="Drop selected onto surface below (D)"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -408,6 +410,25 @@ export const PropertiesPanel: React.FC = () => {
           }}
         >
           <ArrowDownToLine size={14} color="var(--accent)" />
+          <span>Drop onto Surface Below (D)</span>
+        </button>
+
+        <button
+          onClick={triggerSnapToFloor}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '7px 10px',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '4px',
+            fontSize: '12px',
+            color: 'var(--text-main)'
+          }}
+        >
+          <ArrowDownToLine size={14} color="var(--text-muted)" />
           <span>Snap to Floor (Y = 0)</span>
         </button>
       </div>

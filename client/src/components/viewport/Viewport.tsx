@@ -11,6 +11,8 @@ import { TransformGizmo } from './TransformGizmo';
 import { ArrowKeyController } from './useArrowKeyMovement';
 import { LightingRig } from './LightingRig';
 import { toAppliedNormalisation } from '../../utils/modelNormalisation';
+import { filterTopLevelSelected } from '../../utils/sceneHierarchy';
+import { collectSurfaceTargetMeshes, computeDropDeltaY } from '../../utils/surfaceSnap';
 
 const SnapToFloorController: React.FC = () => {
   const { scene } = useThree();
@@ -50,6 +52,36 @@ const SnapToFloorController: React.FC = () => {
   return null;
 };
 
+const DropToSurfaceController: React.FC = () => {
+  const { scene } = useThree();
+  const { dropToSurfaceTimestamp, selectedObjectIds, objects, applyFloorOffset } = useSceneStore();
+  const prevRef = useRef(dropToSurfaceTimestamp);
+
+  useEffect(() => {
+    if (dropToSurfaceTimestamp === prevRef.current) return;
+    prevRef.current = dropToSurfaceTimestamp;
+
+    const topSelected = filterTopLevelSelected(selectedObjectIds, objects);
+    const offsets: { id: string; deltaY: number }[] = [];
+
+    for (const target of topSelected) {
+      const obj3d = scene.getObjectByName(`scene_obj_${target.id}`);
+      if (!obj3d) continue;
+      const targetMeshes = collectSurfaceTargetMeshes(scene, objects, [target.id]);
+      const deltaY = computeDropDeltaY(obj3d, targetMeshes, 0.08);
+      if (deltaY !== null) {
+        offsets.push({ id: target.id, deltaY });
+      }
+    }
+
+    if (offsets.length > 0) {
+      applyFloorOffset(offsets);
+    }
+  }, [dropToSurfaceTimestamp, selectedObjectIds, objects, scene, applyFloorOffset]);
+
+  return null;
+};
+
 const CaptureController: React.FC = () => {
   const { gl, scene, camera } = useThree();
 
@@ -68,7 +100,7 @@ const CaptureController: React.FC = () => {
 
 export const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { objects, addObject, deselectAll } = useSceneStore();
+  const { objects, snap, addObject, deselectAll } = useSceneStore();
   const { models } = useLibraryStore();
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -94,17 +126,38 @@ export const Viewport: React.FC = () => {
 
       const canvas = containerRef.current.querySelector('canvas');
       if (canvas) {
-        const camera = (canvas as any).__r3f?.store?.getState()?.camera as THREE.Camera | undefined;
+        const r3fState = (canvas as any).__r3f?.store?.getState();
+        const camera = r3fState?.camera as THREE.Camera | undefined;
+        const r3fScene = r3fState?.scene as THREE.Scene | undefined;
         if (camera) {
           const raycaster = new THREE.Raycaster();
           raycaster.setFromCamera(new THREE.Vector2(mouseX, mouseY), camera);
           const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-          const hitPoint = new THREE.Vector3();
-          if (raycaster.ray.intersectPlane(floorPlane, hitPoint)) {
+          const floorHit = new THREE.Vector3();
+          const hasFloorHit = Boolean(raycaster.ray.intersectPlane(floorPlane, floorHit));
+          const floorDist = hasFloorHit ? raycaster.ray.origin.distanceTo(floorHit) : Infinity;
+
+          let placedOnSurface = false;
+          if (snap.surfaceSnapEnabled && r3fScene) {
+            const targetMeshes = collectSurfaceTargetMeshes(r3fScene, objects, []);
+            if (targetMeshes.length > 0) {
+              const hits = raycaster.intersectObjects(targetMeshes, false);
+              if (hits.length > 0 && hits[0].distance <= floorDist) {
+                dropPosition = [
+                  parseFloat(hits[0].point.x.toFixed(2)),
+                  parseFloat(hits[0].point.y.toFixed(3)),
+                  parseFloat(hits[0].point.z.toFixed(2))
+                ];
+                placedOnSurface = true;
+              }
+            }
+          }
+
+          if (!placedOnSurface && hasFloorHit) {
             dropPosition = [
-              parseFloat(hitPoint.x.toFixed(2)),
+              parseFloat(floorHit.x.toFixed(2)),
               0,
-              parseFloat(hitPoint.z.toFixed(2))
+              parseFloat(floorHit.z.toFixed(2))
             ];
           }
         }
@@ -159,6 +212,7 @@ export const Viewport: React.FC = () => {
         <TransformGizmo />
         <ArrowKeyController />
         <SnapToFloorController />
+        <DropToSurfaceController />
         <CaptureController />
 
         {/* Render root scene instances (nested children render inside parent groups) */}

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useMemo } from 'react';
+import { useThree } from '@react-three/fiber';
 import { TransformControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSceneStore } from '../../store/sceneStore';
@@ -8,6 +9,7 @@ import {
   getParentWorldMatrix,
   getWorldMatrix,
 } from '../../utils/sceneHierarchy';
+import { collectSurfaceTargetMeshes, computeDropDeltaY } from '../../utils/surfaceSnap';
 
 interface InitialObjectTransform {
   id: string;
@@ -16,6 +18,7 @@ interface InitialObjectTransform {
 }
 
 export const TransformGizmo: React.FC = () => {
+  const { scene } = useThree();
   const {
     objects,
     selectedObjectIds,
@@ -111,6 +114,12 @@ export const TransformGizmo: React.FC = () => {
   const handleObjectChange = () => {
     if (!pivotRef.current || selectedObjects.length === 0) return;
 
+    const activeAxis = controlsRef.current?.axis as string | null | undefined;
+    const shouldSurfaceSnap =
+      snap.surfaceSnapEnabled &&
+      transformMode === 'translate' &&
+      activeAxis !== 'Y';
+
     if (selectedObjects.length === 1) {
       const target = selectedObjects[0];
       pivotRef.current.updateMatrixWorld();
@@ -120,6 +129,28 @@ export const TransformGizmo: React.FC = () => {
         pivotRef.current.matrixWorld
       );
       const tf = decomposeMatrixToTransform(localMat);
+
+      if (shouldSurfaceSnap) {
+        const obj3d = scene.getObjectByName(`scene_obj_${target.id}`);
+        if (obj3d) {
+          obj3d.position.set(...tf.position);
+          obj3d.rotation.set(...tf.rotation);
+          obj3d.scale.set(...tf.scale);
+          const targetMeshes = collectSurfaceTargetMeshes(scene, objects, [target.id]);
+          const dy = computeDropDeltaY(obj3d, targetMeshes, 0.75);
+          if (dy !== null) {
+            const localDelta = new THREE.Vector3(0, dy, 0);
+            if (target.parentId) {
+              localDelta.applyMatrix4(parentWorldInv.clone().setPosition(0, 0, 0));
+            }
+            tf.position = [
+              tf.position[0] + localDelta.x,
+              tf.position[1] + localDelta.y,
+              tf.position[2] + localDelta.z,
+            ];
+          }
+        }
+      }
 
       updateObjectTransform(target.id, {
         position: tf.position,
@@ -133,12 +164,38 @@ export const TransformGizmo: React.FC = () => {
         dragStartRef.current.pivotInverse
       );
 
+      const ignoreAll = selectedObjects.map((o) => o.id);
+      const targetMeshes = shouldSurfaceSnap
+        ? collectSurfaceTargetMeshes(scene, objects, ignoreAll)
+        : [];
+
       const updates = dragStartRef.current.initialObjects.map((item) => {
         const obj = objects.find((o) => o.id === item.id);
         const parentWorldInv = getParentWorldMatrix(obj?.parentId ?? null, objects).invert();
         const newWorldMatrix = new THREE.Matrix4().multiplyMatrices(deltaMatrix, item.matrix);
         const newLocalMatrix = new THREE.Matrix4().multiplyMatrices(parentWorldInv, newWorldMatrix);
         const tf = decomposeMatrixToTransform(newLocalMatrix);
+
+        if (shouldSurfaceSnap && obj) {
+          const obj3d = scene.getObjectByName(`scene_obj_${obj.id}`);
+          if (obj3d) {
+            obj3d.position.set(...tf.position);
+            obj3d.rotation.set(...tf.rotation);
+            obj3d.scale.set(...tf.scale);
+            const dy = computeDropDeltaY(obj3d, targetMeshes, 0.75);
+            if (dy !== null) {
+              const localDelta = new THREE.Vector3(0, dy, 0);
+              if (obj.parentId) {
+                localDelta.applyMatrix4(parentWorldInv.clone().setPosition(0, 0, 0));
+              }
+              tf.position = [
+                tf.position[0] + localDelta.x,
+                tf.position[1] + localDelta.y,
+                tf.position[2] + localDelta.z,
+              ];
+            }
+          }
+        }
 
         return {
           id: item.id,

@@ -23,6 +23,7 @@ export interface SnapSettings {
   rotationValue: number; // in degrees
   scaleEnabled: boolean;
   scaleValue: number;
+  surfaceSnapEnabled: boolean;
 }
 
 const MAX_HISTORY_DEPTH = 50;
@@ -36,6 +37,7 @@ interface SceneState {
   focusTargetTimestamp: number;
   resetCameraTimestamp: number;
   snapToFloorTimestamp: number;
+  dropToSurfaceTimestamp: number;
 
   // Scene Metadata & Persistence (Phase 4)
   currentSceneId: string | null;
@@ -85,6 +87,7 @@ interface SceneState {
   triggerFocus: () => void;
   triggerResetCamera: () => void;
   triggerSnapToFloor: () => void;
+  triggerDropToSurface: () => void;
 
   // Phase 3 Actions
   setTransformMode: (mode: TransformMode) => void;
@@ -179,6 +182,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   focusTargetTimestamp: 0,
   resetCameraTimestamp: 0,
   snapToFloorTimestamp: 0,
+  dropToSurfaceTimestamp: 0,
 
   currentSceneId: null,
   currentSceneName: 'Untitled Scene',
@@ -198,7 +202,8 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     rotationEnabled: false,
     rotationValue: 15,
     scaleEnabled: false,
-    scaleValue: 0.1
+    scaleValue: 0.1,
+    surfaceSnapEnabled: false
   },
 
   past: [],
@@ -552,6 +557,10 @@ export const useSceneStore = create<SceneState>((set, get) => ({
     set({ snapToFloorTimestamp: Date.now() });
   },
 
+  triggerDropToSurface: () => {
+    set({ dropToSurfaceTimestamp: Date.now() });
+  },
+
   setTransformMode: (mode) => {
     set({ transformMode: mode });
   },
@@ -622,9 +631,19 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       objects: objects.map((o) => {
         const dy = map.get(o.id);
         if (dy === undefined || Math.abs(dy) < 1e-5) return o;
+        const deltaVec = new THREE.Vector3(0, dy, 0);
+        if (o.parentId) {
+          deltaVec.applyMatrix4(
+            getParentWorldMatrix(o.parentId, objects).invert().setPosition(0, 0, 0)
+          );
+        }
         return {
           ...o,
-          position: [o.position[0], o.position[1] + dy, o.position[2]]
+          position: [
+            o.position[0] + deltaVec.x,
+            o.position[1] + deltaVec.y,
+            o.position[2] + deltaVec.z
+          ]
         };
       }),
       isDirty: true

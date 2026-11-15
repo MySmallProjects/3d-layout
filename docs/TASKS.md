@@ -82,7 +82,7 @@ The agent ticks items as completed, and lists any skipped or simplified items un
 - [x] 7.3 Camera bookmarks
 - [x] 7.4 Batch render
 - [x] 7.5 Grouping / parenting
-- [ ] 7.6 Snap to surface
+- [x] 7.6 Snap to surface
 - [ ] 7.7 Ground plane options
 - Skipped/simplified:
 

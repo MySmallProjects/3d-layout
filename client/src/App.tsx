@@ -289,6 +289,9 @@ export const App: React.FC = () => {
         case 'modeScale':
           sceneState.setTransformMode('scale');
           break;
+        case 'dropToSurface':
+          sceneState.triggerDropToSurface();
+          break;
         case 'undo':
           e.preventDefault();
           sceneState.undo();

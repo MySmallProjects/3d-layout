@@ -70,6 +70,12 @@ export const SHORTCUTS: ShortcutCategory[] = [
         key: 'R',
         description: 'Scale mode',
         match: (e) => !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'r' || e.key === 'R')
+      },
+      {
+        id: 'dropToSurface',
+        key: 'D',
+        description: 'Drop selected onto surface below',
+        match: (e) => !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'd' || e.key === 'D')
       }
     ]
   },
