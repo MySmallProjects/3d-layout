@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Sliders, Lock, Unlock, ArrowDownToLine, Copy, Trash2 } from 'lucide-react';
 import { useSceneStore } from '../../store/sceneStore';
 import { NumberInput } from './NumberInput';
+import { MaterialOverrideSection } from './MaterialOverrideSection';
 
 const RAD2DEG = 180 / Math.PI;
 const DEG2RAD = Math.PI / 180;
@@ -390,6 +391,8 @@ export const PropertiesPanel: React.FC = () => {
             })}
           </div>
         </div>
+
+        <MaterialOverrideSection object={obj} />
 
         {/* Drop onto Surface Below & Snap to Floor */}
         <button

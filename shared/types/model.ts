@@ -33,6 +33,8 @@ export interface LibraryModel {
   createdAt: string;
   normalisation?: ModelNormalisation | null;
   optimisation?: ModelOptimisation | null;
+  tags?: string[];
+  lastUsedAt?: string | null;
 }
 
 export interface FolderNode extends Folder {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Loader2, Edit2, FolderInput, RefreshCw, RotateCcw, Ruler, Sparkles, Trash2 } from 'lucide-react';
+import { Box, Loader2, Edit2, FolderInput, RefreshCw, RotateCcw, Ruler, Sparkles, Tag, Trash2 } from 'lucide-react';
 import { LibraryModel } from '../../types';
 import { useLibraryStore } from '../../store/libraryStore';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
@@ -8,6 +8,7 @@ interface ModelCardProps {
   model: LibraryModel;
   onRename: (model: LibraryModel) => void;
   onMove: (model: LibraryModel) => void;
+  onManageTags?: (model: LibraryModel) => void;
   onNormalise: (model: LibraryModel) => void;
   onOptimise: (model: LibraryModel) => void;
   onDelete: (model: LibraryModel) => void;
@@ -17,6 +18,7 @@ export const ModelCard: React.FC<ModelCardProps> = ({
   model,
   onRename,
   onMove,
+  onManageTags,
   onNormalise,
   onOptimise,
   onDelete
@@ -71,6 +73,15 @@ export const ModelCard: React.FC<ModelCardProps> = ({
       icon: <FolderInput size={14} />,
       onClick: () => onMove(model)
     },
+    ...(onManageTags
+      ? [
+          {
+            label: 'Manage Tags...',
+            icon: <Tag size={14} />,
+            onClick: () => onManageTags(model)
+          }
+        ]
+      : []),
     {
       label: 'Normalisation...',
       icon: <Ruler size={14} />,
@@ -275,6 +286,29 @@ export const ModelCard: React.FC<ModelCardProps> = ({
               )}
             </span>
           </div>
+          {model.tags && model.tags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '4px' }}>
+              {model.tags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: '9px',
+                    padding: '1px 5px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  #{tag}
+                </span>
+              ))}
+              {model.tags.length > 3 && (
+                <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>
+                  +{model.tags.length - 3}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

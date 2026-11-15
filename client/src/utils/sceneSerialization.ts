@@ -91,6 +91,21 @@ export function validateAndNormalizeSceneJson(
           }
         : undefined;
 
+    const rawMat = rec.materialOverride as Record<string, unknown> | undefined;
+    const materialOverride =
+      rawMat && typeof rawMat === 'object' && typeof rawMat.enabled === 'boolean'
+        ? {
+            enabled: rawMat.enabled,
+            ...(typeof rawMat.color === 'string' ? { color: rawMat.color } : {}),
+            ...(typeof rawMat.roughness === 'number' && Number.isFinite(rawMat.roughness)
+              ? { roughness: Math.max(0, Math.min(1, rawMat.roughness)) }
+              : {}),
+            ...(typeof rawMat.metalness === 'number' && Number.isFinite(rawMat.metalness)
+              ? { metalness: Math.max(0, Math.min(1, rawMat.metalness)) }
+              : {}),
+          }
+        : undefined;
+
     return {
       id:
         typeof rec.id === 'string' && rec.id.trim()
@@ -106,6 +121,7 @@ export function validateAndNormalizeSceneJson(
       parentId: typeof rec.parentId === 'string' ? rec.parentId : null,
       ...(isGroup ? { isGroup: true } : {}),
       ...(appliedNormalisation ? { appliedNormalisation } : {}),
+      ...(materialOverride ? { materialOverride } : {}),
     };
   });
 

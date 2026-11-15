@@ -585,10 +585,77 @@ async function runTests() {
     );
   `);
   migrateDatabase(legacyV3Db, 3);
-  const v4Cols = legacyV3Db.prepare('PRAGMA table_info("renders")').all() as { name: string }[];
-  assert(v4Cols.some((c) => c.name === 'camera_name'), 'v3 -> v4 migration must add renders.camera_name');
+  const v4Cols = legacyV3Db.prepare('PRAGMA table_info("models")').all() as { name: string }[];
+  const v4RenderCols = legacyV3Db.prepare('PRAGMA table_info("renders")').all() as { name: string }[];
+  assert(v4RenderCols.some((c) => c.name === 'camera_name'), 'v3 -> v4 migration must add renders.camera_name');
   legacyV3Db.close();
   console.log('✓ Phase 7.4 render cameraName metadata & v3->v4 migration verified');
+
+  // --- Phase 8: Corrupt GLB validation, model tags & lastUsedAt, v4->v5 migration, ADMIN_PASSWORD ---
+  const { validateGlbBinaryFile, updateModelTags, touchModelUsed } = await import('../src/services/modelService');
+  const { getAdminPassword } = await import('../src/config');
+
+  // 1. Validate valid GLB vs corrupt GLB
+  const validGlbCheck = path.join(os.tmpdir(), `valid-check-${Date.now()}.glb`);
+  fs.writeFileSync(validGlbCheck, rawGlbBytes);
+  assert.strictEqual(validateGlbBinaryFile(validGlbCheck).valid, true, 'Valid GLB passes binary validation');
+  fs.unlinkSync(validGlbCheck);
+
+  const corruptGlbCheck = path.join(os.tmpdir(), `corrupt-check-${Date.now()}.glb`);
+  fs.writeFileSync(corruptGlbCheck, Buffer.from('not-a-valid-glb-header-at-all'));
+  const corruptRes = validateGlbBinaryFile(corruptGlbCheck);
+  assert.strictEqual(corruptRes.valid, false, 'Corrupt GLB fails validation');
+  assert(corruptRes.error && corruptRes.error.includes('magic header'), 'Corrupt GLB fails with clear magic header error');
+  fs.unlinkSync(corruptGlbCheck);
+
+  // 2. Model tags & lastUsedAt
+  const tagTempGlb = path.join(os.tmpdir(), `tag-test-${Date.now()}.glb`);
+  fs.writeFileSync(tagTempGlb, rawGlbBytes);
+  const tagModel = createModel('TagChair.glb', null, tagTempGlb, rawGlbBytes.byteLength);
+  const updatedTagsModel = updateModelTags(tagModel.id, ['Furniture', 'Chair', 'furniture', '  office  ']);
+  assert.deepStrictEqual(
+    updatedTagsModel?.tags,
+    ['furniture', 'chair', 'office'],
+    'Tags should be normalised, lowercased, and deduplicated'
+  );
+  const searchByTag = listModels(undefined, 'office');
+  assert(searchByTag.some((m) => m.id === tagModel.id), 'listModels search query matches model tags');
+
+  const touchedModel = touchModelUsed(tagModel.id);
+  assert(touchedModel?.lastUsedAt, 'touchModelUsed sets lastUsedAt ISO timestamp');
+  deleteModel(tagModel.id);
+
+  // 3. v4 -> v5 migration adds models.tags and models.last_used_at
+  const legacyV4Db = new DatabaseMod(':memory:');
+  legacyV4Db.exec(`
+    CREATE TABLE models (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      folder_id TEXT,
+      file_path TEXT NOT NULL,
+      thumbnail_path TEXT,
+      size_bytes INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      normalisation TEXT,
+      optimisation TEXT
+    );
+  `);
+  migrateDatabase(legacyV4Db, 4);
+  const v5Cols = legacyV4Db.prepare('PRAGMA table_info("models")').all() as { name: string }[];
+  assert(v5Cols.some((c) => c.name === 'tags'), 'v4 -> v5 migration must add models.tags');
+  assert(v5Cols.some((c) => c.name === 'last_used_at'), 'v4 -> v5 migration must add models.last_used_at');
+  legacyV4Db.close();
+
+  // 4. ADMIN_PASSWORD config helper
+  const prevPwd = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = 'secret-admin-pass';
+  assert.strictEqual(getAdminPassword(), 'secret-admin-pass');
+  if (prevPwd === undefined) {
+    delete process.env.ADMIN_PASSWORD;
+  } else {
+    process.env.ADMIN_PASSWORD = prevPwd;
+  }
+  console.log('✓ Phase 8 corrupt GLB validation, tags, lastUsedAt, v4->v5 migration & ADMIN_PASSWORD verified');
 
   // Clean up isolated temp DATA_DIR if running in tmpdir
   if (DATA_DIR.startsWith(os.tmpdir())) {

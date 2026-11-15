@@ -292,6 +292,9 @@ export const App: React.FC = () => {
         case 'dropToSurface':
           sceneState.triggerDropToSurface();
           break;
+        case 'toggleRuler':
+          sceneState.toggleRuler();
+          break;
         case 'undo':
           e.preventDefault();
           sceneState.undo();
@@ -387,10 +390,20 @@ export const App: React.FC = () => {
         onOpenGallery={navigateToRenders}
       />
 
+      <ServerStatusBanner />
+
       {/* Main Workspace */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
         {/* Left: Asset Library Panel */}
-        <LibraryPanel />
+        <ResizableSidePanel
+          side="left"
+          label="Asset Library"
+          defaultWidth={320}
+          minWidth={240}
+          maxWidth={460}
+        >
+          <LibraryPanel />
+        </ResizableSidePanel>
 
         {/* Center: 3D Viewport */}
         <main
@@ -405,7 +418,15 @@ export const App: React.FC = () => {
         </main>
 
         {/* Right: Scene Objects List & Properties Panel */}
-        <SceneObjectsPanel />
+        <ResizableSidePanel
+          side="right"
+          label="Scene & Properties"
+          defaultWidth={290}
+          minWidth={230}
+          maxWidth={440}
+        >
+          <SceneObjectsPanel />
+        </ResizableSidePanel>
       </div>
 
       {/* Version badge (bottom left) */}
@@ -464,3 +485,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+import { ResizableSidePanel, ServerStatusBanner } from './components/layout/ResizableSidePanel';

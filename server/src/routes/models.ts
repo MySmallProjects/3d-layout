@@ -10,7 +10,10 @@ import {
   moveModel,
   deleteModel,
   saveThumbnail,
-  updateModelNormalisation
+  updateModelNormalisation,
+  updateModelTags,
+  touchModelUsed,
+  validateGlbBinaryFile
 } from '../services/modelService';
 import { optimiseModelById, revertModelById } from '../services/modelOptimisationService';
 import { getAppSettings } from '../services/settingsService';
@@ -114,6 +117,26 @@ modelsRouter.post('/upload', (req: Request, res: Response) => {
 
     try {
       for (const file of files) {
+        const validation = validateGlbBinaryFile(file.path);
+        if (!validation.valid) {
+          for (const f of files) {
+            if (fs.existsSync(f.path)) {
+              try {
+                fs.unlinkSync(f.path);
+              } catch {
+                // ignore unlink error
+              }
+            }
+          }
+          res.status(400).json({
+            success: false,
+            error: `Corrupt or invalid GLB file "${file.originalname}": ${validation.error}`,
+          });
+          return;
+        }
+      }
+
+      for (const file of files) {
         let model = createModel(file.originalname, folderId, file.path, file.size);
         if (optSettings.enabledOnUpload) {
           try {
@@ -171,6 +194,29 @@ modelsRouter.patch('/:id/normalisation', (req: Request, res: Response) => {
     res.json({ success: true, data: model });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to update model normalisation';
+    res.status(400).json({ success: false, error: message });
+  }
+});
+
+// PATCH /api/models/:id/tags
+modelsRouter.patch('/:id/tags', (req: Request, res: Response) => {
+  try {
+    const tags = Array.isArray(req.body?.tags) ? req.body.tags : [];
+    const model = updateModelTags(req.params.id, tags);
+    res.json({ success: true, data: model });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to update model tags';
+    res.status(400).json({ success: false, error: message });
+  }
+});
+
+// POST /api/models/:id/used
+modelsRouter.post('/:id/used', (req: Request, res: Response) => {
+  try {
+    const model = touchModelUsed(req.params.id);
+    res.json({ success: true, data: model });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Failed to record model usage';
     res.status(400).json({ success: false, error: message });
   }
 });

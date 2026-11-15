@@ -6,6 +6,7 @@ import type {
   CameraBookmark,
   CameraState,
   GroundPlaneConfig,
+  MaterialOverride,
   SceneData,
 } from '@shared/types/scene';
 import type { LightingConfig } from '@shared/types/lighting';
@@ -72,6 +73,7 @@ interface SceneState {
   transformMode: TransformMode;
   isGizmoDragging: boolean;
   snap: SnapSettings;
+  rulerActive: boolean;
 
   // Undo / Redo History
   past: SceneObject[][];
@@ -146,6 +148,15 @@ interface SceneState {
 
   // Ground Plane (Phase 7.7)
   setGroundPlane: (patch: Partial<GroundPlaneConfig>) => void;
+
+  // Phase 8 Polish & Nice-to-haves
+  updateObjectMaterialOverride: (
+    id: string,
+    override: MaterialOverride | null,
+    recordUndo?: boolean
+  ) => void;
+  setRulerActive: (active: boolean) => void;
+  toggleRuler: () => void;
 }
 
 function getLiveCameraState(fallback: CameraState): CameraState {
@@ -180,6 +191,7 @@ function cloneObjects(objs: SceneObject[]): SceneObject[] {
           pivotOffset: [...o.appliedNormalisation.pivotOffset],
         }
       : o.appliedNormalisation,
+    materialOverride: o.materialOverride ? { ...o.materialOverride } : o.materialOverride,
   }));
 }
 
@@ -215,6 +227,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
 
   transformMode: 'translate',
   isGizmoDragging: false,
+  rulerActive: false,
   snap: {
     positionEnabled: false,
     positionValue: 0.5,
@@ -842,6 +855,31 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       groundPlane: { ...state.groundPlane, ...patch },
       isDirty: true,
     }));
+  },
+
+  updateObjectMaterialOverride: (id, override, recordUndo = true) => {
+    const { objects, past } = get();
+    const updated = objects.map((o) =>
+      o.id === id ? { ...o, materialOverride: override ? { ...override } : null } : o
+    );
+    if (recordUndo) {
+      set({
+        past: pushPast(past, objects),
+        future: [],
+        objects: updated,
+        isDirty: true,
+      });
+    } else {
+      set({ objects: updated, isDirty: true });
+    }
+  },
+
+  setRulerActive: (active) => {
+    set({ rulerActive: active });
+  },
+
+  toggleRuler: () => {
+    set((state) => ({ rulerActive: !state.rulerActive }));
   },
 
   addCameraBookmark: (name, cameraOverride) => {

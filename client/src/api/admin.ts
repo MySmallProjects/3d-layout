@@ -1,11 +1,31 @@
 import type { AdminOverview, RestoreValidationResult } from '@shared/types/admin';
-import { apiRequest } from './client';
+import { apiRequest, getStoredAdminPassword } from './client';
+
+export interface AdminAuthStatus {
+  passwordRequired: boolean;
+  authenticated: boolean;
+}
+
+export async function fetchAdminAuthStatus(): Promise<AdminAuthStatus> {
+  return apiRequest<AdminAuthStatus>('/api/admin/auth-status');
+}
+
+export async function verifyAdminPasswordApi(password: string): Promise<{ authenticated: boolean }> {
+  return apiRequest<{ authenticated: boolean }>('/api/admin/auth-verify', {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  });
+}
 
 export async function fetchAdminOverview(): Promise<AdminOverview> {
   return apiRequest<AdminOverview>('/api/admin/overview');
 }
 
 export function getBackupDownloadUrl(): string {
+  const pwd = getStoredAdminPassword();
+  if (pwd) {
+    return `/api/admin/backup?adminPassword=${encodeURIComponent(pwd)}`;
+  }
   return '/api/admin/backup';
 }
 
@@ -16,6 +36,10 @@ export function validateBackupFile(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/admin/restore/validate');
+    const pwd = getStoredAdminPassword();
+    if (pwd) {
+      xhr.setRequestHeader('X-Admin-Password', pwd);
+    }
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {

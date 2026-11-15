@@ -11,6 +11,7 @@ import { sphericalToCartesian } from '../constants/lightingPresets';
 import { wrapWithAppliedNormalisation } from './modelNormalisation';
 import { isEffectivelyVisible } from './sceneHierarchy';
 import { createGroundPlaneMesh } from './groundPlaneThree';
+import { applyInstanceMaterialState } from './materialOverride';
 import {
   checkAbort,
   createThumbnailFromDataUrl,
@@ -293,16 +294,13 @@ export async function renderScenePathTraced(
 
       const clone = baseGroup.clone(true);
       const isMirrored = obj.scale[0] * obj.scale[1] * obj.scale[2] < 0;
-      if (isMirrored) {
-        clone.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.material) {
-            const mat = (child.material as THREE.Material).clone();
-            mat.side = THREE.DoubleSide;
-            child.material = mat;
-            disposables.push(mat);
-          }
-        });
-      }
+      const clonedMats = applyInstanceMaterialState(
+        clone,
+        baseGroup,
+        isMirrored,
+        obj.materialOverride
+      );
+      disposables.push(...clonedMats);
       const wrapped = wrapWithAppliedNormalisation(clone, obj.appliedNormalisation);
       wrapped.position.set(...obj.position);
       wrapped.rotation.set(...obj.rotation);

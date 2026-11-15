@@ -19,6 +19,7 @@ import { sphericalToCartesian } from '../constants/lightingPresets';
 import { wrapWithAppliedNormalisation } from './modelNormalisation';
 import { isEffectivelyVisible } from './sceneHierarchy';
 import { createGroundPlaneMesh } from './groundPlaneThree';
+import { applyInstanceMaterialState } from './materialOverride';
 
 export function mapToneMapping(mode: ToneMappingMode): THREE.ToneMapping {
   switch (mode) {
@@ -248,18 +249,28 @@ export async function renderSceneOffscreen(
 
       const clone = baseGroup.clone(true);
       const isMirrored = obj.scale[0] * obj.scale[1] * obj.scale[2] < 0;
+      const clonedMats = applyInstanceMaterialState(
+        clone,
+        baseGroup,
+        isMirrored,
+        obj.materialOverride
+      );
+      disposables.push(...clonedMats);
       clone.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.castShadow = true;
           child.receiveShadow = true;
-          if ((isMirrored || lighting.hdriId) && child.material) {
-            const mat = (child.material as THREE.Material).clone();
-            if (isMirrored) mat.side = THREE.DoubleSide;
-            if (lighting.hdriId && 'envMapIntensity' in mat) {
+          if (lighting.hdriId && child.material) {
+            const mat = clonedMats.includes(child.material as THREE.Material)
+              ? (child.material as THREE.Material)
+              : (child.material as THREE.Material).clone();
+            if ('envMapIntensity' in mat) {
               (mat as THREE.MeshStandardMaterial).envMapIntensity = lighting.hdriIntensity;
             }
-            child.material = mat;
-            disposables.push(mat);
+            if (!clonedMats.includes(mat)) {
+              child.material = mat;
+              disposables.push(mat);
+            }
           }
         }
       });

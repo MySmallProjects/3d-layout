@@ -3,6 +3,13 @@ export interface AppliedNormalisation {
   pivotOffset: [number, number, number];
 }
 
+export interface MaterialOverride {
+  enabled: boolean;
+  color?: string;
+  roughness?: number;
+  metalness?: number;
+}
+
 export interface SceneObject {
   id: string;
   modelId: string;
@@ -16,6 +23,8 @@ export interface SceneObject {
   isGroup?: boolean;
   /** Snapshot of model normalisation applied when this instance was added; omitted for legacy scenes. */
   appliedNormalisation?: AppliedNormalisation | null;
+  /** Optional per-object material overrides (colour, roughness, metalness). */
+  materialOverride?: MaterialOverride | null;
 }
 
 export interface BackgroundConfig {

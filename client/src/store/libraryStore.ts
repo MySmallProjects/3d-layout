@@ -15,7 +15,9 @@ import {
   uploadThumbnailApi,
   updateModelNormalisationApi,
   optimiseModelApi,
-  revertModelApi
+  revertModelApi,
+  updateModelTagsApi,
+  markModelUsedApi
 } from '../api/models';
 import { fetchAppSettings, updateAppSettingsApi } from '../api/settings';
 import { generateThumbnailDataUrl } from '../services/thumbnailGenerator';
@@ -28,6 +30,7 @@ interface LibraryState {
   folderTree: FolderNode[];
   selectedFolderId: string | null | undefined; // undefined = all, null = uncategorized/root
   searchQuery: string;
+  selectedTag: string | null;
   isLoading: boolean;
   uploadProgress: { total: number; completed: number; currentName?: string } | null;
   generatingThumbnails: Record<string, boolean>;
@@ -41,6 +44,7 @@ interface LibraryState {
   saveSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
   setSelectedFolder: (folderId: string | null | undefined) => void;
   setSearchQuery: (query: string) => void;
+  setSelectedTag: (tag: string | null) => void;
   createFolder: (name: string, parentId?: string | null) => Promise<void>;
   renameFolder: (id: string, name: string) => Promise<void>;
   deleteFolder: (id: string, deleteContents?: boolean) => Promise<void>;
@@ -53,6 +57,8 @@ interface LibraryState {
   renormaliseModel: (id: string, targetSizeOverride?: number, enabledOverride?: boolean) => Promise<LibraryModel>;
   optimiseModel: (id: string, options?: { maxTextureSize?: number; webpQuality?: number }) => Promise<LibraryModel>;
   revertModel: (id: string) => Promise<LibraryModel>;
+  updateModelTags: (id: string, tags: string[]) => Promise<LibraryModel>;
+  markModelUsed: (id: string) => Promise<void>;
   showToast: (message: string, type?: 'info' | 'success' | 'error') => void;
   clearToast: () => void;
 }
@@ -63,6 +69,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   folderTree: [],
   selectedFolderId: undefined, // default: show all models
   searchQuery: '',
+  selectedTag: null,
   isLoading: false,
   uploadProgress: null,
   generatingThumbnails: {},
@@ -84,6 +91,29 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   setSearchQuery: (query) => {
     set({ searchQuery: query });
     get().loadLibrary();
+  },
+
+  setSelectedTag: (tag) => {
+    set({ selectedTag: tag });
+  },
+
+  updateModelTags: async (id, tags) => {
+    const updated = await updateModelTagsApi(id, tags);
+    set((state) => ({
+      models: state.models.map((m) => (m.id === id ? updated : m))
+    }));
+    return updated;
+  },
+
+  markModelUsed: async (id) => {
+    try {
+      const updated = await markModelUsedApi(id);
+      set((state) => ({
+        models: state.models.map((m) => (m.id === id ? updated : m))
+      }));
+    } catch {
+      // Ignore non-critical tracking errors
+    }
   },
 
   loadLibrary: async () => {
@@ -243,6 +273,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   deleteModel: async (id) => {
     try {
       await deleteModelApi(id);
+      invalidateGltfCache(id);
       await get().loadLibrary();
       get().showToast('Model deleted', 'success');
     } catch (err: unknown) {

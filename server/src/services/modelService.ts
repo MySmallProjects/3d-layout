@@ -16,6 +16,8 @@ interface ModelRow {
   created_at: string;
   normalisation: string | null;
   optimisation: string | null;
+  tags: string | null;
+  last_used_at: string | null;
 }
 
 function parseJsonColumn<T>(raw: string | null): T | null {
@@ -28,6 +30,10 @@ function parseJsonColumn<T>(raw: string | null): T | null {
 }
 
 function rowToModel(row: ModelRow): LibraryModel {
+  const parsedTags = parseJsonColumn<unknown>(row.tags);
+  const tags = Array.isArray(parsedTags)
+    ? parsedTags.filter((t): t is string => typeof t === 'string' && t.trim().length > 0)
+    : [];
   return {
     id: row.id,
     name: row.name,
@@ -38,6 +44,8 @@ function rowToModel(row: ModelRow): LibraryModel {
     createdAt: row.created_at,
     normalisation: parseJsonColumn<ModelNormalisation>(row.normalisation),
     optimisation: parseJsonColumn<ModelOptimisation>(row.optimisation),
+    tags,
+    lastUsedAt: row.last_used_at ?? null,
   };
 }
 
@@ -56,8 +64,9 @@ export function listModels(folderId?: string | null, search?: string): LibraryMo
   }
 
   if (search && search.trim()) {
-    query += ' AND name LIKE ?';
-    params.push(`%${search.trim()}%`);
+    query += ' AND (name LIKE ? OR tags LIKE ?)';
+    const pat = `%${search.trim()}%`;
+    params.push(pat, pat);
   }
 
   query += ' ORDER BY created_at DESC';
@@ -118,7 +127,86 @@ export function createModel(
     sizeBytes,
     createdAt,
     normalisation: null,
+    tags: [],
+    lastUsedAt: null,
   };
+}
+
+/**
+ * Validates that a file on disk has a valid binary glTF 2.0 (.glb) header and JSON chunk.
+ */
+export function validateGlbBinaryFile(filePath: string): { valid: boolean; error?: string } {
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size < 20) {
+      return { valid: false, error: 'File is too small to be a valid binary GLB (< 20 bytes).' };
+    }
+    const fd = fs.openSync(filePath, 'r');
+    try {
+      const header = Buffer.alloc(20);
+      fs.readSync(fd, header, 0, 20, 0);
+      const magic = header.readUInt32LE(0);
+      if (magic !== 0x46546c67) {
+        return { valid: false, error: 'Missing glTF binary magic header (not a valid .glb file).' };
+      }
+      const version = header.readUInt32LE(4);
+      if (version !== 2) {
+        return { valid: false, error: `Unsupported glTF version ${version} (only glTF 2.0 is supported).` };
+      }
+      const totalLength = header.readUInt32LE(8);
+      if (totalLength > stat.size || totalLength < 20) {
+        return { valid: false, error: 'Corrupt or truncated GLB file (declared length exceeds file size).' };
+      }
+      const jsonChunkLength = header.readUInt32LE(12);
+      const jsonChunkType = header.readUInt32LE(16);
+      if (jsonChunkType !== 0x4e4f534a || jsonChunkLength === 0 || 20 + jsonChunkLength > stat.size) {
+        return { valid: false, error: 'Corrupt GLB JSON chunk header.' };
+      }
+      const jsonBuf = Buffer.alloc(jsonChunkLength);
+      fs.readSync(fd, jsonBuf, 0, jsonChunkLength, 20);
+      const parsed = JSON.parse(jsonBuf.toString('utf8')) as Record<string, unknown>;
+      if (!parsed || typeof parsed !== 'object' || !parsed.asset) {
+        return { valid: false, error: 'Invalid glTF JSON root structure (missing "asset" property).' };
+      }
+      return { valid: true };
+    } finally {
+      fs.closeSync(fd);
+    }
+  } catch (err) {
+    return {
+      valid: false,
+      error: err instanceof Error ? `Corrupt GLB content (${err.message})` : 'Corrupt GLB file.',
+    };
+  }
+}
+
+export function updateModelTags(id: string, tags: string[]): LibraryModel {
+  const db = getDatabase();
+  const model = getModel(id);
+  if (!model) {
+    throw new Error(`Model ${id} not found`);
+  }
+  const cleaned = Array.from(
+    new Set(
+      (Array.isArray(tags) ? tags : [])
+        .map((t) => (typeof t === 'string' ? t.trim().toLowerCase().slice(0, 32) : ''))
+        .filter((t) => t.length > 0)
+    )
+  ).slice(0, 20);
+
+  db.prepare('UPDATE models SET tags = ? WHERE id = ?').run(JSON.stringify(cleaned), id);
+  return { ...model, tags: cleaned };
+}
+
+export function touchModelUsed(id: string): LibraryModel {
+  const db = getDatabase();
+  const model = getModel(id);
+  if (!model) {
+    throw new Error(`Model ${id} not found`);
+  }
+  const now = new Date().toISOString();
+  db.prepare('UPDATE models SET last_used_at = ? WHERE id = ?').run(now, id);
+  return { ...model, lastUsedAt: now };
 }
 
 export function renameModel(id: string, name: string): LibraryModel {

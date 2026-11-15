@@ -99,10 +99,14 @@ const CaptureController: React.FC = () => {
   return null;
 };
 
+import { RulerSceneTool, RulerHudOverlay } from './RulerTool';
+
 export const Viewport: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { objects, snap, addObject, deselectAll } = useSceneStore();
-  const { models } = useLibraryStore();
+  const { objects, snap, addObject, deselectAll, rulerActive } = useSceneStore();
+  const { models, markModelUsed } = useLibraryStore();
+  const [contextLost, setContextLost] = React.useState(false);
+  const [canvasKey, setCanvasKey] = React.useState(0);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -171,6 +175,7 @@ export const Viewport: React.FC = () => {
       dropPosition,
       toAppliedNormalisation(libraryModel?.normalisation)
     );
+    markModelUsed(modelId);
   };
 
   return (
@@ -183,10 +188,55 @@ export const Viewport: React.FC = () => {
         height: '100%',
         position: 'relative',
         outline: 'none',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        cursor: rulerActive ? 'crosshair' : 'default'
       }}
     >
+      <RulerHudOverlay />
+
+      {contextLost && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: 'rgba(15, 16, 20, 0.92)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            zIndex: 30,
+            padding: '24px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: '15px', fontWeight: 600, color: '#fca5a5' }}>
+            WebGL GPU Context Lost
+          </div>
+          <div style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '420px', lineHeight: 1.5 }}>
+            Your browser or graphics driver reset the 3D WebGL context (often caused by high GPU memory usage). Your scene data is safe.
+          </div>
+          <button
+            onClick={() => {
+              setContextLost(false);
+              setCanvasKey((k) => k + 1);
+            }}
+            style={{
+              padding: '8px 16px',
+              fontSize: '13px',
+              fontWeight: 600,
+              backgroundColor: 'var(--accent)',
+              color: '#fff',
+              borderRadius: '5px',
+            }}
+          >
+            Restore 3D Viewport
+          </button>
+        </div>
+      )}
+
       <Canvas
+        key={canvasKey}
         shadows
         camera={{ position: [8, 6, 8], fov: 45, near: 0.1, far: 500 }}
         dpr={[1, 1.5]} // Capped pixel ratio for fast edit mode performance
@@ -196,7 +246,21 @@ export const Viewport: React.FC = () => {
           preserveDrawingBuffer: false,
           powerPreference: 'high-performance'
         }}
-        onPointerMissed={() => deselectAll()}
+        onCreated={({ gl }) => {
+          const dom = gl.domElement;
+          const onLost = (event: Event) => {
+            event.preventDefault();
+            setContextLost(true);
+          };
+          const onRestored = () => {
+            setContextLost(false);
+          };
+          dom.addEventListener('webglcontextlost', onLost, false);
+          dom.addEventListener('webglcontextrestored', onRestored, false);
+        }}
+        onPointerMissed={() => {
+          if (!rulerActive) deselectAll();
+        }}
       >
         {/* Fast edit-mode lighting preview */}
         <LightingRig />
@@ -212,7 +276,8 @@ export const Viewport: React.FC = () => {
         <CameraControls />
 
         {/* Manipulation Gizmo & Controllers */}
-        <TransformGizmo />
+        {!rulerActive && <TransformGizmo />}
+        <RulerSceneTool />
         <ArrowKeyController />
         <SnapToFloorController />
         <DropToSurfaceController />

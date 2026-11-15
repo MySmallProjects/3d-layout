@@ -49,6 +49,15 @@ export const MAX_FILE_SIZE_BYTES = parseInt(
   10
 );
 
+/**
+ * Optional admin password set via ADMIN_PASSWORD environment variable.
+ * Read dynamically so tests and runtime config can inspect it.
+ */
+export function getAdminPassword(): string | null {
+  const raw = process.env.ADMIN_PASSWORD;
+  return raw && raw.trim().length > 0 ? raw.trim() : null;
+}
+
 // Ensure required directories exist
 export function ensureDirectories(): void {
   for (const dir of [

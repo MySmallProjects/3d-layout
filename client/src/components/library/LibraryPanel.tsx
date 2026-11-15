@@ -10,12 +10,9 @@ export const LibraryPanel: React.FC = () => {
   return (
     <aside
       style={{
-        width: '320px',
-        minWidth: '260px',
-        maxWidth: '400px',
+        width: '100%',
         height: '100%',
         backgroundColor: 'var(--bg-panel)',
-        borderRight: '1px solid var(--border-color)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'

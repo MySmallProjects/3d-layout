@@ -13,8 +13,53 @@ import {
   discardRestoreToken,
   validateBackupZip,
 } from '../services/restoreService';
+import { getAdminPassword } from '../config';
 
 export const adminRouter = Router();
+
+function isAuthorizedAdminRequest(req: Request): boolean {
+  const required = getAdminPassword();
+  if (!required) return true;
+  const headerVal = req.header('x-admin-password') || '';
+  const queryVal = typeof req.query.adminPassword === 'string' ? req.query.adminPassword : '';
+  return headerVal === required || queryVal === required;
+}
+
+adminRouter.get('/auth-status', (req: Request, res: Response) => {
+  const required = Boolean(getAdminPassword());
+  res.json({
+    success: true,
+    data: {
+      passwordRequired: required,
+      authenticated: isAuthorizedAdminRequest(req),
+    },
+  });
+});
+
+adminRouter.post('/auth-verify', (req: Request, res: Response) => {
+  const required = getAdminPassword();
+  if (!required) {
+    res.json({ success: true, data: { authenticated: true } });
+    return;
+  }
+  const provided = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (provided === required) {
+    res.json({ success: true, data: { authenticated: true } });
+  } else {
+    res.status(401).json({ success: false, error: 'Incorrect admin password.' });
+  }
+});
+
+adminRouter.use((req, res, next) => {
+  if (!isAuthorizedAdminRequest(req)) {
+    res.status(401).json({
+      success: false,
+      error: 'Admin password required. Please sign in to access Admin.',
+    });
+    return;
+  }
+  next();
+});
 
 const upload = multer({
   dest: os.tmpdir(),

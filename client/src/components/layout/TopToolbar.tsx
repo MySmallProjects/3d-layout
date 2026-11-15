@@ -23,11 +23,17 @@ import {
   Sun,
   Images,
   ArrowDownToLine,
-  Layers
+  Layers,
+  Ruler,
+  Film,
+  Download
 } from 'lucide-react';
 import { useSceneStore } from '../../store/sceneStore';
+import { useLibraryStore } from '../../store/libraryStore';
 import { BackgroundModal } from '../scene/BackgroundModal';
 import { GroundPlaneModal } from '../scene/GroundPlaneModal';
+import { TurntableModal } from '../render/TurntableModal';
+import { exportSceneAsGlb } from '../../utils/sceneGlbExporter';
 
 interface TopToolbarProps {
   onOpenHelp: () => void;
@@ -66,6 +72,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
     triggerResetCamera,
     transformMode,
     setTransformMode,
+    rulerActive,
+    toggleRuler,
+    objects,
+    groundPlane,
     snap,
     updateSnap,
     past,
@@ -75,9 +85,11 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
     currentSceneName,
     isDirty
   } = useSceneStore();
+  const { showToast } = useLibraryStore();
 
   const [isBgModalOpen, setIsBgModalOpen] = useState(false);
   const [isGroundModalOpen, setIsGroundModalOpen] = useState(false);
+  const [isTurntableOpen, setIsTurntableOpen] = useState(false);
   const [isSnapMenuOpen, setIsSnapMenuOpen] = useState(false);
   const [isSceneMenuOpen, setIsSceneMenuOpen] = useState(false);
   const snapMenuRef = useRef<HTMLDivElement>(null);
@@ -239,6 +251,20 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
                   <span>Export JSON</span>
                 </button>
                 <button
+                  onClick={() => {
+                    setIsSceneMenuOpen(false);
+                    exportSceneAsGlb(currentSceneName, objects, groundPlane)
+                      .then(() => showToast('Exported combined GLB scene', 'success'))
+                      .catch((err) => showToast(err instanceof Error ? err.message : 'GLB export failed', 'error'));
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                >
+                  <Download size={14} />
+                  <span>Export Combined GLB</span>
+                </button>
+                <button
                   onClick={() => { setIsSceneMenuOpen(false); onImportScene(); }}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', fontSize: '12px', borderRadius: '4px', textAlign: 'left', color: 'var(--text-main)' }}
                   onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)'; }}
@@ -287,7 +313,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
 
           <div style={{ width: '1px', height: '18px', backgroundColor: 'var(--border-color)' }} />
 
-          {/* Transform modes */}
+          {/* Transform modes & Ruler */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
             <button
               onClick={() => setTransformMode('translate')}
@@ -330,6 +356,20 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
               }}
             >
               <Maximize2 size={15} />
+            </button>
+            <button
+              onClick={toggleRuler}
+              title="3D Measurement / Ruler Tool (M)"
+              style={{
+                padding: '5px',
+                borderRadius: '4px',
+                backgroundColor: rulerActive ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                color: rulerActive ? '#fbbf24' : 'var(--text-muted)',
+                border: rulerActive ? '1px solid rgba(245, 158, 11, 0.45)' : '1px solid transparent',
+                display: 'flex'
+              }}
+            >
+              <Ruler size={15} />
             </button>
           </div>
 
@@ -630,6 +670,25 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
           </button>
 
           <button
+            onClick={() => setIsTurntableOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              backgroundColor: 'var(--bg-card)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--border-color)',
+              padding: '4px 10px',
+              borderRadius: '4px',
+              fontSize: '12px'
+            }}
+            title="Export 360° Turntable Video"
+          >
+            <Film size={14} />
+            Turntable
+          </button>
+
+          <button
             onClick={onOpenGallery}
             style={{
               display: 'flex',
@@ -691,6 +750,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({
       <GroundPlaneModal
         isOpen={isGroundModalOpen}
         onClose={() => setIsGroundModalOpen(false)}
+      />
+      <TurntableModal
+        isOpen={isTurntableOpen}
+        onClose={() => setIsTurntableOpen(false)}
       />
     </>
   );

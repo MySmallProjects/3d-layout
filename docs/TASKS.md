@@ -88,12 +88,13 @@ The agent ticks items as completed, and lists any skipped or simplified items un
   - None. All Phase 7 (7.1–7.7) features implemented cleanly.
 
 ## Phase 8: Polish
-- [ ] Review skipped items
-- [ ] Performance pass
-- [ ] Error handling pass
-- [ ] Optional admin password
-- [ ] UI polish
-- [ ] Tags and recently used
-- [ ] Approved nice-to-haves
-- [ ] Final README
+- [x] Review skipped items
+- [x] Performance pass
+- [x] Error handling pass
+- [x] Optional admin password
+- [x] UI polish
+- [x] Tags and recently used
+- [x] Approved nice-to-haves
+- [x] Final README
 - Skipped/simplified:
+  - Kept fast bounding-box hover/selection wireframes instead of full-scene post-processing outlines for smooth edit performance with 20+ 10MB models (confirmed with user).

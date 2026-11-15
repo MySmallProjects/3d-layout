@@ -34,10 +34,18 @@ function formatBytes(bytes: number): string {
   return `${val.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
 }
 
+import { fetchAdminAuthStatus, verifyAdminPasswordApi } from '../../api/admin';
+import { setStoredAdminPassword } from '../../api/client';
+
 export const AdminPage: React.FC<AdminPageProps> = ({ onBackToEditor }) => {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [authenticated, setAuthenticated] = useState(true);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authChecking, setAuthChecking] = useState(true);
 
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [validation, setValidation] = useState<RestoreValidationResult | null>(null);
@@ -61,8 +69,61 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToEditor }) => {
   };
 
   useEffect(() => {
-    loadOverview();
+    let active = true;
+    (async () => {
+      setAuthChecking(true);
+      try {
+        const auth = await fetchAdminAuthStatus();
+        if (!active) return;
+        setPasswordRequired(auth.passwordRequired);
+        setAuthenticated(auth.authenticated);
+        if (!auth.passwordRequired || auth.authenticated) {
+          await loadOverview();
+        } else {
+          setLoading(false);
+        }
+      } catch (err) {
+        if (!active) return;
+        setStatusMsg({
+          type: 'error',
+          text: err instanceof Error ? err.message : 'Failed to verify admin status',
+        });
+        setLoading(false);
+      } finally {
+        if (active) setAuthChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatusMsg(null);
+    try {
+      const res = await verifyAdminPasswordApi(passwordInput);
+      if (res.authenticated) {
+        setStoredAdminPassword(passwordInput);
+        setAuthenticated(true);
+        setPasswordInput('');
+        await loadOverview();
+      } else {
+        setStatusMsg({ type: 'error', text: 'Invalid admin password.' });
+      }
+    } catch (err) {
+      setStatusMsg({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Invalid admin password.',
+      });
+    }
+  };
+
+  const handleLockAdmin = () => {
+    setStoredAdminPassword('');
+    setAuthenticated(false);
+    setOverview(null);
+  };
 
   const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -158,23 +219,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToEditor }) => {
           <Shield size={18} color="var(--accent)" />
           <span>Admin & Maintenance</span>
         </div>
-        <button
-          onClick={onBackToEditor}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 12px',
-            fontSize: '12px',
-            color: 'var(--text-main)',
-            backgroundColor: 'var(--bg-card)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '5px',
-          }}
-        >
-          <ArrowLeft size={14} />
-          Back to Editor
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {passwordRequired && authenticated && (
+            <button
+              onClick={handleLockAdmin}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                fontSize: '12px',
+                color: 'var(--text-muted)',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '5px',
+              }}
+            >
+              Lock Admin
+            </button>
+          )}
+          <button
+            onClick={onBackToEditor}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              fontSize: '12px',
+              color: 'var(--text-main)',
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '5px',
+            }}
+          >
+            <ArrowLeft size={14} />
+            Back to Editor
+          </button>
+        </div>
       </header>
 
       <main style={{ maxWidth: '880px', margin: '24px auto', padding: '0 20px 48px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -213,6 +294,54 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToEditor }) => {
           </div>
         )}
 
+        {authChecking ? (
+          <section style={cardStyle}>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Checking admin authentication...</div>
+          </section>
+        ) : passwordRequired && !authenticated ? (
+          <section style={{ ...cardStyle, maxWidth: '420px', margin: '40px auto', width: '100%' }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <Shield size={16} color="var(--accent)" />
+              Admin Password Required
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: 1.5 }}>
+              This instance is protected by an admin password (<code>ADMIN_PASSWORD</code>). Enter the password to unlock maintenance tools.
+            </p>
+            <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Admin password"
+                autoFocus
+                style={{
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  backgroundColor: 'var(--bg-app)',
+                  color: 'var(--text-main)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '5px',
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!passwordInput}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--accent)',
+                  color: '#fff',
+                  borderRadius: '5px',
+                  opacity: passwordInput ? 1 : 0.5,
+                }}
+              >
+                Unlock Admin
+              </button>
+            </form>
+          </section>
+        ) : (
+          <>
         {/* Overview */}
         <section style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -459,6 +588,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onBackToEditor }) => {
             Reset Everything...
           </button>
         </section>
+          </>
+        )}
       </main>
 
       <ResetConfirmModal

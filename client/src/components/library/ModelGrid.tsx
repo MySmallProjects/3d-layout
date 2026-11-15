@@ -6,12 +6,16 @@ import { ModelCard } from './ModelCard';
 import { Modal } from '../common/Modal';
 import { ModelNormalisationModal } from './ModelNormalisationModal';
 import { ModelOptimisationModal } from './ModelOptimisationModal';
+import { ModelTagsModal } from './ModelTagsModal';
+import { LibraryExtrasSection } from './LibraryExtrasSection';
 
 export const ModelGrid: React.FC = () => {
   const {
     models,
     folders,
     searchQuery,
+    selectedTag,
+    isLoading,
     setSearchQuery,
     renameModel,
     moveModel,
@@ -27,6 +31,11 @@ export const ModelGrid: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<LibraryModel | null>(null);
   const [normTarget, setNormTarget] = useState<LibraryModel | null>(null);
   const [optTarget, setOptTarget] = useState<LibraryModel | null>(null);
+  const [tagsTarget, setTagsTarget] = useState<LibraryModel | null>(null);
+
+  const visibleModels = selectedTag
+    ? models.filter((m) => (m.tags ?? []).includes(selectedTag))
+    : models;
 
   const handleRenameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +97,9 @@ export const ModelGrid: React.FC = () => {
         </div>
       </div>
 
+      {/* Tags Filter & Recently Used */}
+      <LibraryExtrasSection />
+
       {/* Models Grid */}
       <div
         style={{
@@ -102,7 +114,20 @@ export const ModelGrid: React.FC = () => {
           alignContent: 'start'
         }}
       >
-        {models.length === 0 ? (
+        {isLoading && models.length === 0 ? (
+          Array.from({ length: 4 }).map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                height: '140px',
+                borderRadius: '6px',
+                backgroundColor: 'var(--bg-card)',
+                border: '1px solid var(--border-color)',
+                opacity: 0.5,
+              }}
+            />
+          ))
+        ) : visibleModels.length === 0 ? (
           <div
             style={{
               gridColumn: '1 / -1',
@@ -118,14 +143,16 @@ export const ModelGrid: React.FC = () => {
           >
             <Box size={32} opacity={0.4} />
             <div style={{ fontSize: '13px' }}>
-              {searchQuery ? 'No models match your search' : 'No 3D models in this folder'}
+              {searchQuery || selectedTag
+                ? 'No models match your filter'
+                : 'No 3D models in this folder'}
             </div>
             <div style={{ fontSize: '11px', opacity: 0.7 }}>
               Upload .glb files above or drag them directly here
             </div>
           </div>
         ) : (
-          models.map((model) => (
+          visibleModels.map((model) => (
             <ModelCard
               key={model.id}
               model={model}
@@ -137,6 +164,7 @@ export const ModelGrid: React.FC = () => {
                 setMoveTarget(m);
                 setTargetFolderId(m.folderId || '');
               }}
+              onManageTags={(m) => setTagsTarget(m)}
               onNormalise={(m) => setNormTarget(m)}
               onOptimise={(m) => setOptTarget(m)}
               onDelete={(m) => setDeleteTarget(m)}
@@ -314,6 +342,10 @@ export const ModelGrid: React.FC = () => {
       <ModelOptimisationModal
         model={optTarget}
         onClose={() => setOptTarget(null)}
+      />
+      <ModelTagsModal
+        model={tagsTarget}
+        onClose={() => setTagsTarget(null)}
       />
     </div>
   );

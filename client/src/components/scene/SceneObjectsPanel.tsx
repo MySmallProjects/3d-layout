@@ -66,12 +66,9 @@ export const SceneObjectsPanel: React.FC = () => {
   return (
     <aside
       style={{
-        width: '280px',
-        minWidth: '240px',
-        maxWidth: '360px',
+        width: '100%',
         height: '100%',
         backgroundColor: 'var(--bg-panel)',
-        borderLeft: '1px solid var(--border-color)',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'

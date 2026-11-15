@@ -92,3 +92,16 @@ export async function revertModelApi(id: string): Promise<LibraryModel> {
     method: 'POST'
   });
 }
+
+export async function updateModelTagsApi(id: string, tags: string[]): Promise<LibraryModel> {
+  return apiRequest<LibraryModel>(`/api/models/${id}/tags`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tags })
+  });
+}
+
+export async function markModelUsedApi(id: string): Promise<LibraryModel> {
+  return apiRequest<LibraryModel>(`/api/models/${id}/used`, {
+    method: 'POST'
+  });
+}
