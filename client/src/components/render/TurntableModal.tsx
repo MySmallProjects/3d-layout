@@ -240,6 +240,11 @@ export const TurntableModal: React.FC<TurntableModalProps> = ({ isOpen, onClose 
       disposables.forEach((d) => d.dispose());
       if (renderer) {
         renderer.dispose();
+        try {
+          renderer.forceContextLoss();
+        } catch {
+          // noop
+        }
       }
       setRecording(false);
     }

@@ -149,6 +149,11 @@ export async function renderScenePathTraced(
     if (!gl.getExtension('EXT_color_buffer_float')) {
       throw new Error('Path tracing requires GPU float color buffer support (EXT_color_buffer_float).');
     }
+    // Enable float/half-float linear filtering and float blending so GradientEquirectTexture,
+    // EquirectHdrInfoUniform, and RGBA32F accumulation targets sample and blend cleanly.
+    gl.getExtension('OES_texture_float_linear');
+    gl.getExtension('OES_texture_half_float_linear');
+    gl.getExtension('EXT_float_blend');
 
     const maxTex = renderer.capabilities.maxTextureSize;
     const maxRb = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number;
@@ -176,7 +181,14 @@ export async function renderScenePathTraced(
     // Background (omitted when transparent PNG requested)
     if (!settings.transparentBg) {
       if (background.type === 'color' && background.color) {
-        scene.background = new THREE.Color(background.color);
+        // Use an explicitly updated GradientEquirectTexture rather than THREE.Color so
+        // pure white (#ffffff) is never skipped by WebGLPathTracer's topColor.equals() check.
+        const bgTex = new GradientEquirectTexture(16);
+        bgTex.topColor.set(background.color);
+        bgTex.bottomColor.set(background.color);
+        bgTex.update();
+        scene.background = bgTex;
+        disposables.push(bgTex);
       } else if (background.type === 'image' && background.imagePath) {
         onProgress?.(6, 'Loading background texture...');
         const tex = await new THREE.TextureLoader().loadAsync(
@@ -321,8 +333,61 @@ export async function renderScenePathTraced(
 
     ensureSceneRotationSupport();
     pathTracer = new WebGLPathTracer(renderer);
+
+    // Patch internal PathTracingRenderer so:
+    // 1. onBeforeRender batches all 3 define updates into a single recompilation event
+    //    (preventing 2 extra shader compilations that include volumetric FEATURE_FOG=1).
+    // 2. compileMaterial binds _primaryTarget while calling compileAsync so Three.js compiles
+    //    the exact LinearSRGBColorSpace program used by _fsQuad.render(_renderer) instead of
+    //    stalling the main thread with a synchronous re-compile on tile 0.
+    const ptInternal = (pathTracer as unknown as { _pathTracer?: any })._pathTracer;
+    if (ptInternal) {
+      ptInternal.compileMaterial = function () {
+        const prevTarget = this._renderer.getRenderTarget();
+        this._renderer.setRenderTarget(this._primaryTarget);
+        const promise = this._renderer.compileAsync(this._fsQuad._mesh);
+        this._renderer.setRenderTarget(prevTarget);
+        return promise;
+      };
+      if (ptInternal.material) {
+        ptInternal.material.onBeforeRender = function () {
+          const dof = this.physicalCamera.bokehSize === 0 ? 0 : 1;
+          const bg = this.backgroundMap ? 1 : 0;
+          const fog = this.materials.features.isUsed('FOG') ? 1 : 0;
+          let changed = false;
+          if (this.defines.FEATURE_DOF !== dof) {
+            this.defines.FEATURE_DOF = dof;
+            changed = true;
+          }
+          if (this.defines.FEATURE_BACKGROUND_MAP !== bg) {
+            this.defines.FEATURE_BACKGROUND_MAP = bg;
+            changed = true;
+          }
+          if (this.defines.FEATURE_FOG !== fog) {
+            this.defines.FEATURE_FOG = fog;
+            changed = true;
+          }
+          if (changed) {
+            this.needsUpdate = true;
+          }
+        };
+      }
+    }
+
+    let hasTransmission = false;
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.material) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        for (const m of mats) {
+          if (m && typeof (m as any).transmission === 'number' && (m as any).transmission > 0) {
+            hasTransmission = true;
+          }
+        }
+      }
+    });
+
     pathTracer.bounces = Math.max(1, Math.min(16, settings.pathTracerBounces ?? 5));
-    pathTracer.transmissiveBounces = Math.max(4, pathTracer.bounces);
+    pathTracer.transmissiveBounces = hasTransmission ? Math.min(4, pathTracer.bounces) : 1;
     pathTracer.rasterizeScene = false;
     pathTracer.renderDelay = 0;
     pathTracer.fadeDuration = 0;
@@ -332,7 +397,10 @@ export async function renderScenePathTraced(
     pathTracer.dynamicLowRes = false;
     // Cap packed material texture array resolution so 10MB+ multi-texture GLBs fit in GPU VRAM.
     pathTracer.textureSize.set(Math.min(1024, maxTex), Math.min(1024, maxTex));
-    pathTracer.tiles.set(2, 2);
+    // Use 4x4 tiles (16 sub-passes per sample at 1080p, 6x6 at 4K) so enclosed multi-bounce
+    // scenes keep each GPU draw call short and never trip the OS/browser GPU watchdog.
+    const tileCount = width * height > 2_100_000 ? 6 : 4;
+    pathTracer.tiles.set(tileCount, tileCount);
 
     pathTracer.setScene(scene, camera);
     scene.updateMatrixWorld();
@@ -342,6 +410,7 @@ export async function renderScenePathTraced(
 
     const targetSamples = Math.max(1, Math.min(512, settings.pathTracerSamples ?? 32));
     let compileTicks = 0;
+    let lastYieldTime = performance.now();
 
     while (pathTracer.samples < targetSamples) {
       checkAbort(signal);
@@ -350,6 +419,7 @@ export async function renderScenePathTraced(
       }
 
       pathTracer.renderSample();
+      gl.flush();
 
       if ((pathTracer as unknown as { isCompiling?: boolean }).isCompiling) {
         compileTicks++;
@@ -358,17 +428,47 @@ export async function renderScenePathTraced(
           throw new Error('Path tracer shader compilation timed out.');
         }
         await yieldFrame();
+        lastYieldTime = performance.now();
         continue;
       }
 
       const completed = Math.min(targetSamples, Math.floor(pathTracer.samples));
       const pct = 45 + Math.round((pathTracer.samples / targetSamples) * 51);
       onProgress?.(Math.min(96, pct), `Path tracing: Sample ${completed} / ${targetSamples}`);
-      await yieldFrame();
+
+      const now = performance.now();
+      if (now - lastYieldTime >= 16 || pathTracer.samples >= targetSamples) {
+        await yieldFrame();
+        lastYieldTime = performance.now();
+      }
     }
 
     if (contextLost || gl.isContextLost()) {
       throw new Error('WebGL context lost before image capture.');
+    }
+
+    // Verify that the path tracer actually wrote non-empty pixels to the canvas
+    // (guards against silent GPU driver shader link failures or TDR resets).
+    if (!settings.transparentBg) {
+      const probe = new Uint8Array(4);
+      let anyNonZeroAlpha = false;
+      const probePoints: [number, number][] = [
+        [Math.floor(width * 0.5), Math.floor(height * 0.5)],
+        [Math.floor(width * 0.25), Math.floor(height * 0.25)],
+        [Math.floor(width * 0.75), Math.floor(height * 0.75)],
+        [Math.floor(width * 0.5), Math.floor(height * 0.85)],
+      ];
+      renderer.setRenderTarget(null);
+      for (const [px, py] of probePoints) {
+        gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, probe);
+        if (probe[3] > 0) {
+          anyNonZeroAlpha = true;
+          break;
+        }
+      }
+      if (!anyNonZeroAlpha) {
+        throw new Error('Path tracer produced an empty frame (GPU shader link or timeout).');
+      }
     }
 
     onProgress?.(97, 'Encoding PNG...');
@@ -439,6 +539,7 @@ export async function renderScenePathTraced(
           ctx.drawImage(shadowRenderer.domElement, 0, 0);
         } finally {
           shadowRenderer.dispose();
+          try { shadowRenderer.forceContextLoss(); } catch { /* noop */ }
         }
         imageDataUrl = outCanvas.toDataURL('image/png');
       } else {
@@ -456,8 +557,19 @@ export async function renderScenePathTraced(
     renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
     if (pathTracer) {
       // three-gpu-pathtracer@0.0.23 has an internal typo (`this._renderQuad`) in dispose(),
-      // so guard dispose() and clean up internal quad/targets explicitly.
-      const ptAny = pathTracer as unknown as Record<string, { dispose?: () => void; material?: { dispose?: () => void } } | undefined>;
+      // so guard dispose() and clean up internal quad/targets and GPU data textures explicitly.
+      const ptAny = pathTracer as unknown as Record<string, any>;
+      const ptMat = ptAny._pathTracer?.material;
+      try { ptMat?.bvh?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.attributesArray?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.materialIndexAttribute?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.materials?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.textures?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.iesProfiles?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.envMapInfo?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.stratifiedTexture?.dispose?.(); } catch { /* noop */ }
+      try { ptMat?.stratifiedOffsetTexture?.dispose?.(); } catch { /* noop */ }
+      try { ptAny._colorBackground?.dispose?.(); } catch { /* noop */ }
       try { pathTracer.dispose(); } catch { /* noop */ }
       try { ptAny._quad?.material?.dispose?.(); } catch { /* noop */ }
       try { ptAny._quad?.dispose?.(); } catch { /* noop */ }
@@ -472,6 +584,7 @@ export async function renderScenePathTraced(
       try { d.dispose(); } catch { /* noop */ }
     }
     renderer.dispose();
+    try { renderer.forceContextLoss(); } catch { /* noop */ }
   }
 }
 

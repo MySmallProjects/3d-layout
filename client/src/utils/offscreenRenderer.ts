@@ -419,5 +419,10 @@ export async function renderSceneOffscreen(
       }
     }
     renderer.dispose();
+    try {
+      renderer.forceContextLoss();
+    } catch {
+      // Ignore context loss errors
+    }
   }
 }
